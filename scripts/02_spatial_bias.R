@@ -170,17 +170,19 @@ message("\n=== Running occAssess assessments ===")
 
 # Prepare data for occAssess (data.frame format required)
 kenya_df <- kenya_data %>%
-  select(species, decimalLongitude, decimalLatitude, eventDate, year) %>%
+  select(species, decimalLongitude, decimalLatitude, coordinateUncertaintyInMeters, eventDate, year) %>%
   as.data.frame()
 
 # Record number assessment
 message("Assessing record numbers...")
 record_assessment <- assessRecordNumber(
   dat = kenya_df,
-  xCol = "decimalLongitude",
-  yCol = "decimalLatitude",
-  gridRes = 10000,  # 10km
-  logCount = TRUE
+  species = "species",
+  x = "decimalLongitude",
+  y = "decimalLatitude",
+  year = "year",
+  spatialUncertainty = "coordinateUncertaintyInMeters",
+  identifier = "species"
 )
 
 # Species number assessment
