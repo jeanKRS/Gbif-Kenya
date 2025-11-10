@@ -342,49 +342,63 @@ kenya_df <- kenya_df %>%
 # Define taxonomic levels for analysis
 taxonomic_levels <- c("species", "genus", "family", "order", "class", "phylum", "kingdom")
 
-# Species identity assessment - Run for each taxonomic level
-message("\n--- Assessing species identity by taxonomic level ---")
-species_identity_assessments <- list()
+# Check if taxonomic assessments already exist
+taxonomic_assessments_exist <- file.exists(file.path(data_outputs, "occassess_species_identity_by_taxlevel.rds")) &&
+                               file.exists(file.path(data_outputs, "taxonomic_assessment_summary.rds"))
 
-for (tax_level in taxonomic_levels) {
-  message(sprintf("  Running assessSpeciesID for %s", tax_level))
+if (taxonomic_assessments_exist) {
+  message("  ℹ Taxonomic occAssess assessments already completed. Loading from files...")
+  species_identity_assessments <- readRDS(file.path(data_outputs, "occassess_species_identity_by_taxlevel.rds"))
+  taxonomic_assessment_summary <- readRDS(file.path(data_outputs, "taxonomic_assessment_summary.rds"))
+  print(taxonomic_assessment_summary)
+} else {
+  message("  → Running taxonomic occAssess assessments...")
 
-  if (all(is.na(kenya_df[[tax_level]]))) {
-    message(sprintf("  Skipping %s - all values are NA", tax_level))
-    next
+  # Species identity assessment - Run for each taxonomic level
+  message("\n--- Assessing species identity by taxonomic level ---")
+  species_identity_assessments <- list()
+
+  for (tax_level in taxonomic_levels) {
+    message(sprintf("  Running assessSpeciesID for %s", tax_level))
+
+    if (all(is.na(kenya_df[[tax_level]]))) {
+      message(sprintf("  Skipping %s - all values are NA", tax_level))
+      next
+    }
+
+    tryCatch({
+      species_identity_assessments[[tax_level]] <- assessSpeciesID(
+        dat = kenya_df,
+        speciesCol = tax_level,
+        assumptions = c("singletonSpecies", "highlyCommonSpecies"),
+        singletonThreshold = 1,
+        commonThreshold = 100
+      )
+      message(sprintf("  ✓ Completed identity assessment for %s", tax_level))
+    }, error = function(e) {
+      message(sprintf("  ✗ Error in identity assessment for %s: %s", tax_level, e$message))
+    })
   }
 
-  tryCatch({
-    species_identity_assessments[[tax_level]] <- assessSpeciesID(
-      dat = kenya_df,
-      speciesCol = tax_level,
-      assumptions = c("singletonSpecies", "highlyCommonSpecies"),
-      singletonThreshold = 1,
-      commonThreshold = 100
-    )
-    message(sprintf("  ✓ Completed identity assessment for %s", tax_level))
-  }, error = function(e) {
-    message(sprintf("  ✗ Error in identity assessment for %s: %s", tax_level, e$message))
-  })
+  # Save occAssess results
+  message("\n--- Saving occAssess taxonomic results ---")
+  saveRDS(species_identity_assessments, file.path(data_outputs, "occassess_species_identity_by_taxlevel.rds"))
+
+  # Also save species-level assessment for backward compatibility
+  if (!is.null(species_identity_assessments[["species"]])) {
+    saveRDS(species_identity_assessments[["species"]], file.path(data_outputs, "occassess_species_identity.rds"))
+  }
+
+  # Create summary of taxonomic assessments
+  taxonomic_assessment_summary <- data.frame(
+    taxonomic_level = taxonomic_levels,
+    identity_assessment = sapply(taxonomic_levels, function(x) !is.null(species_identity_assessments[[x]]))
+  )
+
+  print(taxonomic_assessment_summary)
+  saveRDS(taxonomic_assessment_summary, file.path(data_outputs, "taxonomic_assessment_summary.rds"))
+  message("  ✓ Taxonomic occAssess assessments completed")
 }
-
-# Save occAssess results
-message("\n--- Saving occAssess taxonomic results ---")
-saveRDS(species_identity_assessments, file.path(data_outputs, "occassess_species_identity_by_taxlevel.rds"))
-
-# Also save species-level assessment for backward compatibility
-if (!is.null(species_identity_assessments[["species"]])) {
-  saveRDS(species_identity_assessments[["species"]], file.path(data_outputs, "occassess_species_identity.rds"))
-}
-
-# Create summary of taxonomic assessments
-taxonomic_assessment_summary <- data.frame(
-  taxonomic_level = taxonomic_levels,
-  identity_assessment = sapply(taxonomic_levels, function(x) !is.null(species_identity_assessments[[x]]))
-)
-
-print(taxonomic_assessment_summary)
-saveRDS(taxonomic_assessment_summary, file.path(data_outputs, "taxonomic_assessment_summary.rds"))
 
 # 9. COMPARISON WITH EXPECTED DIVERSITY ----------------------------------------
 message("\n=== Comparing with expected diversity (if reference data available) ===")

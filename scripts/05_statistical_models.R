@@ -102,42 +102,66 @@ grid_model <- st_drop_geometry(grid_env) %>%
 # 3. GENERALIZED LINEAR MODELS -------------------------------------------------
 message("\n=== Fitting GLMs for sampling effort ===")
 
-# Model 1: Poisson GLM for record count
-message("Fitting Poisson GLM...")
-glm_poisson <- glm(
-  n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
-    dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
-  data = grid_model,
-  family = poisson(link = "log")
-)
+# Check if models already exist
+models_exist <- file.exists(file.path(data_outputs, "final_count_model.rds")) &&
+                file.exists(file.path(data_outputs, "final_presence_model.rds"))
 
-# Check for overdispersion
-overdispersion <- sum(residuals(glm_poisson, type = "pearson")^2) / glm_poisson$df.residual
-message("Overdispersion parameter: ", round(overdispersion, 2))
+if (models_exist) {
+  message("  ℹ GLM models already fitted. Loading from files...")
+  primary_model <- readRDS(file.path(data_outputs, "final_count_model.rds"))
+  glm_binomial <- readRDS(file.path(data_outputs, "final_presence_model.rds"))
 
-# Model 2: Negative binomial GLM (if overdispersed)
-if (overdispersion > 2) {
-  message("Data is overdispersed. Fitting Negative Binomial GLM...")
-  glm_nb <- glm.nb(
+  # Determine model type
+  if (inherits(primary_model, "negbin")) {
+    model_type <- "Negative Binomial"
+    overdispersion <- primary_model$theta
+  } else {
+    model_type <- "Poisson"
+    overdispersion <- sum(residuals(primary_model, type = "pearson")^2) / primary_model$df.residual
+  }
+  message(sprintf("  Model type: %s", model_type))
+} else {
+  message("  → Fitting GLM models...")
+
+  # Model 1: Poisson GLM for record count
+  message("  Fitting Poisson GLM...")
+  glm_poisson <- glm(
     n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
       dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
-    data = grid_model
+    data = grid_model,
+    family = poisson(link = "log")
   )
-  primary_model <- glm_nb
-  model_type <- "Negative Binomial"
-} else {
-  primary_model <- glm_poisson
-  model_type <- "Poisson"
-}
 
-# Model 3: Binomial GLM for presence/absence
-message("Fitting Binomial GLM for sampling presence...")
-glm_binomial <- glm(
-  presence ~ elevation_scaled + temperature_scaled + precipitation_scaled +
-    dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
-  data = grid_model,
-  family = binomial(link = "logit")
-)
+  # Check for overdispersion
+  overdispersion <- sum(residuals(glm_poisson, type = "pearson")^2) / glm_poisson$df.residual
+  message(sprintf("  Overdispersion parameter: %.2f", overdispersion))
+
+  # Model 2: Negative binomial GLM (if overdispersed)
+  if (overdispersion > 2) {
+    message("  Data is overdispersed. Fitting Negative Binomial GLM...")
+    glm_nb <- glm.nb(
+      n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+        dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+      data = grid_model
+    )
+    primary_model <- glm_nb
+    model_type <- "Negative Binomial"
+  } else {
+    primary_model <- glm_poisson
+    model_type <- "Poisson"
+  }
+
+  # Model 3: Binomial GLM for presence/absence
+  message("  Fitting Binomial GLM for sampling presence...")
+  glm_binomial <- glm(
+    presence ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+      dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+    data = grid_model,
+    family = binomial(link = "logit")
+  )
+
+  message("  ✓ GLM models fitted")
+}
 
 # 4. MODEL DIAGNOSTICS ---------------------------------------------------------
 message("\n=== Running model diagnostics ===")
@@ -219,22 +243,33 @@ saveRDS(aic_comparison, file.path(data_outputs, "model_selection_aic.rds"))
 # 7. GENERALIZED ADDITIVE MODELS -----------------------------------------------
 message("\n=== Fitting GAMs for non-linear relationships ===")
 
-# GAM for record count
-gam_count <- gam(
-  n_records ~ s(elevation, k = 5) + s(temperature, k = 5) +
-    s(precipitation, k = 5) + s(dist_to_city_km, k = 5) +
-    s(lon, lat, k = 20),
-  data = grid_model %>% filter(n_records > 0),
-  family = nb(),
-  method = "REML"
-)
+# Check if GAM already exists
+if (file.exists(file.path(data_outputs, "gam_model.rds"))) {
+  message("  ℹ GAM model already fitted. Loading from file...")
+  gam_count <- readRDS(file.path(data_outputs, "gam_model.rds"))
+  summary_gam <- summary(gam_count)
+  print(summary_gam)
+} else {
+  message("  → Fitting GAM model...")
 
-# GAM summary
-summary_gam <- summary(gam_count)
-print(summary_gam)
+  # GAM for record count
+  gam_count <- gam(
+    n_records ~ s(elevation, k = 5) + s(temperature, k = 5) +
+      s(precipitation, k = 5) + s(dist_to_city_km, k = 5) +
+      s(lon, lat, k = 20),
+    data = grid_model %>% filter(n_records > 0),
+    family = nb(),
+    method = "REML"
+  )
 
-# Save GAM
-saveRDS(gam_count, file.path(data_outputs, "gam_model.rds"))
+  # GAM summary
+  summary_gam <- summary(gam_count)
+  print(summary_gam)
+
+  # Save GAM
+  saveRDS(gam_count, file.path(data_outputs, "gam_model.rds"))
+  message("  ✓ GAM model fitted")
+}
 
 # GAM diagnostic plots
 png(file.path(figures_dir, "18_gam_diagnostics.png"),
@@ -360,111 +395,127 @@ ggsave(file.path(figures_dir, "23_coefficient_plot.png"),
 # 11. TAXONOMIC-SPECIFIC MODELS -----------------------------------------------
 message("\n=== Fitting taxonomic-specific models ===")
 
-# Create grid data with taxonomic composition
-grid_taxonomy <- kenya_data %>%
-  filter(!is.na(class)) %>%
-  mutate(
-    cell_id = paste0(
-      floor(decimalLongitude * 10), "_",
-      floor(decimalLatitude * 10)
-    )
-  ) %>%
-  group_by(grid_id = cell_id, class) %>%
-  summarise(
-    n_records_class = n(),
-    .groups = "drop"
-  )
+# Check if taxonomic models already exist
+taxonomic_models_exist <- file.exists(file.path(data_outputs, "taxonomic_specific_models.rds")) &&
+                          file.exists(file.path(data_outputs, "taxonomic_model_summaries.rds"))
 
-# Get top 5 classes for modeling
-top_5_classes <- kenya_data %>%
-  count(class, sort = TRUE) %>%
-  head(5) %>%
-  pull(class)
+if (taxonomic_models_exist) {
+  message("  ℹ Taxonomic-specific models already fitted. Loading from files...")
+  taxonomic_models <- readRDS(file.path(data_outputs, "taxonomic_specific_models.rds"))
+  taxonomic_model_summaries <- readRDS(file.path(data_outputs, "taxonomic_model_summaries.rds"))
+  message(sprintf("  Loaded models for %d taxonomic classes", length(taxonomic_models)))
+  print(names(taxonomic_models))
+} else {
+  message("  → Fitting taxonomic-specific models...")
 
-message(sprintf("Fitting models for top 5 classes: %s", paste(top_5_classes, collapse = ", ")))
-
-# Join taxonomic data with environmental grid
-grid_tax_env <- grid_model %>%
-  select(grid_id, elevation_scaled, temperature_scaled, precipitation_scaled,
-         dist_to_city_scaled, dist_from_equator, dist_from_coast_km,
-         elevation, temperature, precipitation, dist_to_city_km) %>%
-  inner_join(
-    grid_taxonomy %>% filter(class %in% top_5_classes),
-    by = "grid_id"
-  )
-
-# Fit separate models for each major taxonomic group
-taxonomic_models <- list()
-taxonomic_summaries <- list()
-
-for (tax_class in top_5_classes) {
-  message(sprintf("  Fitting model for %s...", tax_class))
-
-  class_data <- grid_tax_env %>%
-    filter(class == tax_class)
-
-  if (nrow(class_data) < 30) {
-    message(sprintf("  Skipping %s - insufficient data (n = %d)", tax_class, nrow(class_data)))
-    next
-  }
-
-  tryCatch({
-    # Fit negative binomial model for this taxonomic group
-    model_class <- glm.nb(
-      n_records_class ~ elevation_scaled + temperature_scaled + precipitation_scaled +
-        dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
-      data = class_data
+  # Create grid data with taxonomic composition
+  grid_taxonomy <- kenya_data %>%
+    filter(!is.na(class)) %>%
+    mutate(
+      cell_id = paste0(
+        floor(decimalLongitude * 10), "_",
+        floor(decimalLatitude * 10)
+      )
+    ) %>%
+    group_by(grid_id = cell_id, class) %>%
+    summarise(
+      n_records_class = n(),
+      .groups = "drop"
     )
 
-    taxonomic_models[[tax_class]] <- model_class
+  # Get top 5 classes for modeling
+  top_5_classes <- kenya_data %>%
+    count(class, sort = TRUE) %>%
+    head(5) %>%
+    pull(class)
 
-    # Extract summary
-    taxonomic_summaries[[tax_class]] <- broom::tidy(model_class, conf.int = TRUE) %>%
-      mutate(
-        taxonomic_class = tax_class,
-        significant = p.value < 0.05,
-        effect_direction = ifelse(estimate > 0, "Positive", "Negative")
+  message(sprintf("  Fitting models for top 5 classes: %s", paste(top_5_classes, collapse = ", ")))
+
+  # Join taxonomic data with environmental grid
+  grid_tax_env <- grid_model %>%
+    select(grid_id, elevation_scaled, temperature_scaled, precipitation_scaled,
+           dist_to_city_scaled, dist_from_equator, dist_from_coast_km,
+           elevation, temperature, precipitation, dist_to_city_km) %>%
+    inner_join(
+      grid_taxonomy %>% filter(class %in% top_5_classes),
+      by = "grid_id"
+    )
+
+  # Fit separate models for each major taxonomic group
+  taxonomic_models <- list()
+  taxonomic_summaries <- list()
+
+  for (tax_class in top_5_classes) {
+    message(sprintf("    Fitting model for %s...", tax_class))
+
+    class_data <- grid_tax_env %>%
+      filter(class == tax_class)
+
+    if (nrow(class_data) < 30) {
+      message(sprintf("    Skipping %s - insufficient data (n = %d)", tax_class, nrow(class_data)))
+      next
+    }
+
+    tryCatch({
+      # Fit negative binomial model for this taxonomic group
+      model_class <- glm.nb(
+        n_records_class ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+          dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+        data = class_data
       )
 
-    message(sprintf("  ✓ Completed model for %s", tax_class))
-  }, error = function(e) {
-    message(sprintf("  ✗ Error in model for %s: %s", tax_class, e$message))
-  })
-}
+      taxonomic_models[[tax_class]] <- model_class
 
-# Combine taxonomic summaries
-if (length(taxonomic_summaries) > 0) {
-  taxonomic_model_summaries <- bind_rows(taxonomic_summaries)
-  print(taxonomic_model_summaries)
+      # Extract summary
+      taxonomic_summaries[[tax_class]] <- broom::tidy(model_class, conf.int = TRUE) %>%
+        mutate(
+          taxonomic_class = tax_class,
+          significant = p.value < 0.05,
+          effect_direction = ifelse(estimate > 0, "Positive", "Negative")
+        )
 
-  saveRDS(taxonomic_models, file.path(data_outputs, "taxonomic_specific_models.rds"))
-  saveRDS(taxonomic_model_summaries, file.path(data_outputs, "taxonomic_model_summaries.rds"))
+      message(sprintf("    ✓ Completed model for %s", tax_class))
+    }, error = function(e) {
+      message(sprintf("    ✗ Error in model for %s: %s", tax_class, e$message))
+    })
+  }
 
-  # Create coefficient comparison plot
-  coef_comparison <- taxonomic_model_summaries %>%
-    filter(term != "(Intercept)") %>%
-    mutate(term = str_remove(term, "_scaled"))
+  # Combine taxonomic summaries
+  if (length(taxonomic_summaries) > 0) {
+    taxonomic_model_summaries <- bind_rows(taxonomic_summaries)
+    print(taxonomic_model_summaries)
 
-  p_tax_coef <- ggplot(coef_comparison,
-                       aes(x = term, y = estimate, color = taxonomic_class)) +
-    geom_point(size = 3, position = position_dodge(width = 0.5)) +
-    geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
-                  width = 0.2, position = position_dodge(width = 0.5)) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
-    scale_color_viridis_d(option = "turbo") +
-    coord_flip() +
-    labs(
-      title = "Sampling Effort Predictors by Taxonomic Class",
-      subtitle = "Coefficient estimates with 95% CI from Negative Binomial GLMs",
-      x = "Predictor",
-      y = "Coefficient Estimate",
-      color = "Taxonomic Class"
-    ) +
-    theme_minimal() +
-    theme(legend.position = "bottom")
+    saveRDS(taxonomic_models, file.path(data_outputs, "taxonomic_specific_models.rds"))
+    saveRDS(taxonomic_model_summaries, file.path(data_outputs, "taxonomic_model_summaries.rds"))
 
-  ggsave(file.path(figures_dir, "24_taxonomic_coefficients_comparison.png"),
-         p_tax_coef, width = 12, height = 8, dpi = 300)
+    # Create coefficient comparison plot
+    coef_comparison <- taxonomic_model_summaries %>%
+      filter(term != "(Intercept)") %>%
+      mutate(term = str_remove(term, "_scaled"))
+
+    p_tax_coef <- ggplot(coef_comparison,
+                         aes(x = term, y = estimate, color = taxonomic_class)) +
+      geom_point(size = 3, position = position_dodge(width = 0.5)) +
+      geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                    width = 0.2, position = position_dodge(width = 0.5)) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+      scale_color_viridis_d(option = "turbo") +
+      coord_flip() +
+      labs(
+        title = "Sampling Effort Predictors by Taxonomic Class",
+        subtitle = "Coefficient estimates with 95% CI from Negative Binomial GLMs",
+        x = "Predictor",
+        y = "Coefficient Estimate",
+        color = "Taxonomic Class"
+      ) +
+      theme_minimal() +
+      theme(legend.position = "bottom")
+
+    ggsave(file.path(figures_dir, "24_taxonomic_coefficients_comparison.png"),
+           p_tax_coef, width = 12, height = 8, dpi = 300)
+  }
+
+  message("  ✓ Taxonomic-specific models fitted")
 }
 
 # 12. SUMMARY REPORT -----------------------------------------------------------

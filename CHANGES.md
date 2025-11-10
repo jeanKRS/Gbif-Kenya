@@ -1,7 +1,10 @@
-# Analysis Updates - Taxonomic Levels and Temporal Periods
+# Analysis Updates - Taxonomic Levels, Temporal Periods, and Resume Functionality
 
 ## Summary
-Updated all bias assessment scripts to incorporate 10-year temporal periods and taxonomic hierarchy analysis across multiple taxonomic levels.
+Updated all bias assessment scripts to:
+1. Incorporate 10-year temporal periods
+2. Analyze taxonomic hierarchy across multiple taxonomic levels
+3. Support resuming from where analysis stopped (skip completed sections)
 
 ## Changes Made
 
@@ -146,9 +149,70 @@ kenya_df <- kenya_data %>%
 4. Inspect new visualizations for quality and interpretability
 5. Verify period breaks match expected year ranges
 
+## Resume Functionality
+
+All analysis scripts now support **automatic resuming** - if a script is interrupted or fails partway through, it will skip already-completed sections when re-run.
+
+### How It Works
+
+Each major analysis section checks if its output files already exist before running:
+- If output exists → Load from file and skip computation
+- If output missing → Run the analysis and save results
+
+### Benefits
+
+1. **Save Time**: Don't re-run expensive computations that already completed
+2. **Fault Tolerance**: Interruptions (crashes, timeouts) don't require starting over
+3. **Efficient Development**: Test later sections without re-running earlier ones
+4. **Resource Management**: Skip completed sections to save compute time/memory
+
+### Sections with Resume Support
+
+**Spatial Bias Analysis:**
+- ℹ Spatial grid effort calculation
+- ℹ Spatial autocorrelation testing
+- ℹ occAssess assessments (all taxonomic levels)
+
+**Temporal Bias Analysis:**
+- ℹ occAssess temporal assessments (all taxonomic levels)
+
+**Taxonomic Bias Analysis:**
+- ℹ occAssess taxonomic assessments (all taxonomic levels)
+
+**Statistical Models:**
+- ℹ GLM models (Poisson/Negative Binomial + Binomial)
+- ℹ GAM model fitting
+- ℹ Taxonomic-specific models
+
+### Example Output
+
+When resuming, you'll see messages like:
+```
+=== Running occAssess assessments ===
+  ℹ All occAssess assessments already completed. Loading from files...
+  ✓ Loaded 7 taxonomic levels
+
+=== Fitting GLMs for sampling effort ===
+  ℹ GLM models already fitted. Loading from files...
+  Model type: Negative Binomial
+```
+
+### Force Re-run
+
+To force re-running a section, simply delete its output file(s) from `data/outputs/`. The script will detect the missing file and recompute.
+
+Example:
+```bash
+# Force re-run of occAssess assessments
+rm data/outputs/occassess_records_by_taxlevel.rds
+rm data/outputs/occassess_species_by_taxlevel.rds
+rm data/outputs/occassess_coverage_by_taxlevel.rds
+```
+
 ## Notes
 - All scripts maintain backward compatibility
 - Original file outputs preserved for existing workflows
 - New outputs use `_by_taxlevel` suffix for clarity
 - Period breaks automatically adjust to data year range
 - Missing taxonomic data handled gracefully (automatic skip with message)
+- Resume functionality integrated seamlessly - no code changes needed to use it

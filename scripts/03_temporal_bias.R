@@ -123,7 +123,6 @@ kenya_df <- kenya_data %>%
   as.data.frame()
 
 # Create 10-year period breaks (consistent with spatial analysis)
-message("Creating 10-year period breaks...")
 year_range <- range(kenya_df$year, na.rm = TRUE)
 period_breaks <- seq(
   floor(year_range[1] / 10) * 10,
@@ -145,77 +144,93 @@ kenya_df <- kenya_df %>%
 # Define taxonomic levels for analysis
 taxonomic_levels <- c("species", "genus", "family", "order", "class", "phylum", "kingdom")
 
-# Record time assessment - Run for each taxonomic level
-message("\n--- Assessing record temporal distribution by taxonomic level ---")
-record_time_assessments <- list()
+# Check if all temporal assessments already exist
+all_temporal_assessments_exist <- file.exists(file.path(data_outputs, "occassess_record_time_by_taxlevel.rds")) &&
+                                  file.exists(file.path(data_outputs, "occassess_species_time_by_taxlevel.rds")) &&
+                                  file.exists(file.path(data_outputs, "temporal_assessment_summary.rds"))
 
-for (tax_level in taxonomic_levels) {
-  message(sprintf("  Running assessRecordTime for %s", tax_level))
+if (all_temporal_assessments_exist) {
+  message("  ℹ All temporal occAssess assessments already completed. Loading from files...")
+  record_time_assessments <- readRDS(file.path(data_outputs, "occassess_record_time_by_taxlevel.rds"))
+  species_time_assessments <- readRDS(file.path(data_outputs, "occassess_species_time_by_taxlevel.rds"))
+  temporal_assessment_summary <- readRDS(file.path(data_outputs, "temporal_assessment_summary.rds"))
+  print(temporal_assessment_summary)
+} else {
+  message("  → Running temporal occAssess assessments...")
 
-  if (all(is.na(kenya_df[[tax_level]]))) {
-    message(sprintf("  Skipping %s - all values are NA", tax_level))
-    next
+  # Record time assessment - Run for each taxonomic level
+  message("\n--- Assessing record temporal distribution by taxonomic level ---")
+  record_time_assessments <- list()
+
+  for (tax_level in taxonomic_levels) {
+    message(sprintf("  Running assessRecordTime for %s", tax_level))
+
+    if (all(is.na(kenya_df[[tax_level]]))) {
+      message(sprintf("  Skipping %s - all values are NA", tax_level))
+      next
+    }
+
+    tryCatch({
+      record_time_assessments[[tax_level]] <- assessRecordTime(
+        dat = kenya_df,
+        dateCol = "eventDate",
+        intervals = "year"
+      )
+      message(sprintf("  ✓ Completed time assessment for %s", tax_level))
+    }, error = function(e) {
+      message(sprintf("  ✗ Error in time assessment for %s: %s", tax_level, e$message))
+    })
   }
 
-  tryCatch({
-    record_time_assessments[[tax_level]] <- assessRecordTime(
-      dat = kenya_df,
-      dateCol = "eventDate",
-      intervals = "year"
-    )
-    message(sprintf("  ✓ Completed time assessment for %s", tax_level))
-  }, error = function(e) {
-    message(sprintf("  ✗ Error in time assessment for %s: %s", tax_level, e$message))
-  })
-}
+  # Species temporal coverage - Run for different taxonomic levels
+  message("\n--- Assessing temporal coverage by taxonomic level ---")
+  species_time_assessments <- list()
 
-# Species temporal coverage - Run for different taxonomic levels
-message("\n--- Assessing temporal coverage by taxonomic level ---")
-species_time_assessments <- list()
+  for (tax_level in taxonomic_levels) {
+    message(sprintf("  Running assessSpeciesTime for %s", tax_level))
 
-for (tax_level in taxonomic_levels) {
-  message(sprintf("  Running assessSpeciesTime for %s", tax_level))
+    if (all(is.na(kenya_df[[tax_level]]))) {
+      message(sprintf("  Skipping %s - all values are NA", tax_level))
+      next
+    }
 
-  if (all(is.na(kenya_df[[tax_level]]))) {
-    message(sprintf("  Skipping %s - all values are NA", tax_level))
-    next
+    tryCatch({
+      species_time_assessments[[tax_level]] <- assessSpeciesTime(
+        dat = kenya_df,
+        speciesCol = tax_level,
+        dateCol = "eventDate",
+        threshold = 5  # Minimum 5 years between first and last record
+      )
+      message(sprintf("  ✓ Completed temporal coverage for %s", tax_level))
+    }, error = function(e) {
+      message(sprintf("  ✗ Error in temporal coverage for %s: %s", tax_level, e$message))
+    })
   }
 
-  tryCatch({
-    species_time_assessments[[tax_level]] <- assessSpeciesTime(
-      dat = kenya_df,
-      speciesCol = tax_level,
-      dateCol = "eventDate",
-      threshold = 5  # Minimum 5 years between first and last record
-    )
-    message(sprintf("  ✓ Completed temporal coverage for %s", tax_level))
-  }, error = function(e) {
-    message(sprintf("  ✗ Error in temporal coverage for %s: %s", tax_level, e$message))
-  })
+  # Save occAssess results
+  message("\n--- Saving occAssess temporal results ---")
+  saveRDS(record_time_assessments, file.path(data_outputs, "occassess_record_time_by_taxlevel.rds"))
+  saveRDS(species_time_assessments, file.path(data_outputs, "occassess_species_time_by_taxlevel.rds"))
+
+  # Also save species-level assessment for backward compatibility
+  if (!is.null(record_time_assessments[["species"]])) {
+    saveRDS(record_time_assessments[["species"]], file.path(data_outputs, "occassess_record_time.rds"))
+  }
+  if (!is.null(species_time_assessments[["species"]])) {
+    saveRDS(species_time_assessments[["species"]], file.path(data_outputs, "occassess_species_time.rds"))
+  }
+
+  # Create summary of temporal assessments
+  temporal_assessment_summary <- data.frame(
+    taxonomic_level = taxonomic_levels,
+    record_time_assessment = sapply(taxonomic_levels, function(x) !is.null(record_time_assessments[[x]])),
+    species_time_assessment = sapply(taxonomic_levels, function(x) !is.null(species_time_assessments[[x]]))
+  )
+
+  print(temporal_assessment_summary)
+  saveRDS(temporal_assessment_summary, file.path(data_outputs, "temporal_assessment_summary.rds"))
+  message("  ✓ Temporal occAssess assessments completed")
 }
-
-# Save occAssess results
-message("\n--- Saving occAssess temporal results ---")
-saveRDS(record_time_assessments, file.path(data_outputs, "occassess_record_time_by_taxlevel.rds"))
-saveRDS(species_time_assessments, file.path(data_outputs, "occassess_species_time_by_taxlevel.rds"))
-
-# Also save species-level assessment for backward compatibility
-if (!is.null(record_time_assessments[["species"]])) {
-  saveRDS(record_time_assessments[["species"]], file.path(data_outputs, "occassess_record_time.rds"))
-}
-if (!is.null(species_time_assessments[["species"]])) {
-  saveRDS(species_time_assessments[["species"]], file.path(data_outputs, "occassess_species_time.rds"))
-}
-
-# Create summary of temporal assessments
-temporal_assessment_summary <- data.frame(
-  taxonomic_level = taxonomic_levels,
-  record_time_assessment = sapply(taxonomic_levels, function(x) !is.null(record_time_assessments[[x]])),
-  species_time_assessment = sapply(taxonomic_levels, function(x) !is.null(species_time_assessments[[x]]))
-)
-
-print(temporal_assessment_summary)
-saveRDS(temporal_assessment_summary, file.path(data_outputs, "temporal_assessment_summary.rds"))
 
 # 5. TEMPORAL BIAS BY TAXONOMIC GROUP ------------------------------------------
 message("\n=== Analyzing temporal bias by taxonomic group ===")

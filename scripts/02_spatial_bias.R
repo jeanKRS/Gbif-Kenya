@@ -45,81 +45,116 @@ kenya_occurrences <- kenya_data %>%
 # 1. SAMPLING EFFORT ANALYSIS --------------------------------------------------
 message("\n=== Analyzing sampling effort ===")
 
-# Create hexagonal grid for analysis (10km resolution)
-kenya_grid <- st_make_grid(
-  kenya_boundary,
-  cellsize = 0.1,  # ~10km at equator
-  square = FALSE,   # hexagonal grid
-  what = "polygons"
-) %>%
-  st_sf() %>%
-  mutate(grid_id = row_number()) %>%
-  st_intersection(kenya_boundary)
+# Check if results already exist
+if (file.exists(file.path(data_outputs, "spatial_grid_effort.rds"))) {
+  message("  ℹ Spatial grid effort data already exists. Loading from file...")
+  kenya_grid_complete <- readRDS(file.path(data_outputs, "spatial_grid_effort.rds"))
 
-# Calculate records per grid cell
-grid_effort <- kenya_grid %>%
-  st_join(kenya_occurrences) %>%
-  group_by(grid_id) %>%
-  summarise(
-    n_records = sum(!is.na(species)),
-    n_species = n_distinct(species, na.rm = TRUE),
-    .groups = "drop"
-  )
+  # Recalculate summary statistics
+  effort_summary <- kenya_grid_complete %>%
+    st_drop_geometry() %>%
+    summarise(
+      total_cells = n(),
+      cells_with_records = sum(n_records > 0),
+      percent_covered = 100 * cells_with_records / total_cells,
+      mean_records = mean(n_records),
+      median_records = median(n_records),
+      sd_records = sd(n_records),
+      max_records = max(n_records),
+      mean_species = mean(n_species),
+      median_species = median(n_species)
+    )
+  print(effort_summary)
+} else {
+  message("  → Computing spatial grid effort...")
 
-# Add grid cells with zero records
-kenya_grid_complete <- kenya_grid %>%
-  left_join(st_drop_geometry(grid_effort), by = "grid_id") %>%
-  mutate(
-    n_records = replace_na(n_records, 0),
-    n_species = replace_na(n_species, 0),
-    log_records = log10(n_records + 1)
-  )
+  # Create hexagonal grid for analysis (10km resolution)
+  kenya_grid <- st_make_grid(
+    kenya_boundary,
+    cellsize = 0.1,  # ~10km at equator
+    square = FALSE,   # hexagonal grid
+    what = "polygons"
+  ) %>%
+    st_sf() %>%
+    mutate(grid_id = row_number()) %>%
+    st_intersection(kenya_boundary)
 
-# Save grid data
-saveRDS(kenya_grid_complete, file.path(data_outputs, "spatial_grid_effort.rds"))
+  # Calculate records per grid cell
+  grid_effort <- kenya_grid %>%
+    st_join(kenya_occurrences) %>%
+    group_by(grid_id) %>%
+    summarise(
+      n_records = sum(!is.na(species)),
+      n_species = n_distinct(species, na.rm = TRUE),
+      .groups = "drop"
+    )
 
-# Summary statistics
-effort_summary <- kenya_grid_complete %>%
-  st_drop_geometry() %>%
-  summarise(
-    total_cells = n(),
-    cells_with_records = sum(n_records > 0),
-    percent_covered = 100 * cells_with_records / total_cells,
-    mean_records = mean(n_records),
-    median_records = median(n_records),
-    sd_records = sd(n_records),
-    max_records = max(n_records),
-    mean_species = mean(n_species),
-    median_species = median(n_species)
-  )
+  # Add grid cells with zero records
+  kenya_grid_complete <- kenya_grid %>%
+    left_join(st_drop_geometry(grid_effort), by = "grid_id") %>%
+    mutate(
+      n_records = replace_na(n_records, 0),
+      n_species = replace_na(n_species, 0),
+      log_records = log10(n_records + 1)
+    )
 
-print(effort_summary)
+  # Save grid data
+  saveRDS(kenya_grid_complete, file.path(data_outputs, "spatial_grid_effort.rds"))
+
+  # Summary statistics
+  effort_summary <- kenya_grid_complete %>%
+    st_drop_geometry() %>%
+    summarise(
+      total_cells = n(),
+      cells_with_records = sum(n_records > 0),
+      percent_covered = 100 * cells_with_records / total_cells,
+      mean_records = mean(n_records),
+      median_records = median(n_records),
+      sd_records = sd(n_records),
+      max_records = max(n_records),
+      mean_species = mean(n_species),
+      median_species = median(n_species)
+    )
+
+  print(effort_summary)
+  message("  ✓ Spatial grid effort completed")
+}
 
 # 2. SPATIAL AUTOCORRELATION ---------------------------------------------------
 message("\n=== Testing spatial autocorrelation ===")
 
-# Create neighbors list (queen contiguity)
-coords_centroids <- st_centroid(kenya_grid_complete) %>%
-  st_coordinates()
+# Check if results already exist
+if (file.exists(file.path(data_outputs, "spatial_autocorrelation.rds"))) {
+  message("  ℹ Spatial autocorrelation already computed. Loading from file...")
+  moran_results <- readRDS(file.path(data_outputs, "spatial_autocorrelation.rds"))
+  print(moran_results)
+} else {
+  message("  → Computing spatial autocorrelation...")
 
-# Create distance-based neighbors (10km threshold)
-neighbors <- dnearneigh(coords_centroids, 0, 15000)  # 15km
-weights <- nb2listw(neighbors, style = "W", zero.policy = TRUE)
+  # Create neighbors list (queen contiguity)
+  coords_centroids <- st_centroid(kenya_grid_complete) %>%
+    st_coordinates()
 
-# Calculate Moran's I for sampling effort
-moran_test <- moran.test(kenya_grid_complete$n_records, weights, zero.policy = TRUE)
+  # Create distance-based neighbors (10km threshold)
+  neighbors <- dnearneigh(coords_centroids, 0, 15000)  # 15km
+  weights <- nb2listw(neighbors, style = "W", zero.policy = TRUE)
 
-moran_results <- data.frame(
-  variable = "sampling_effort",
-  morans_i = moran_test$estimate["Moran I statistic"],
-  expectation = moran_test$estimate["Expectation"],
-  variance = moran_test$estimate["Variance"],
-  p_value = moran_test$p.value,
-  interpretation = ifelse(moran_test$statistic > 0, "Clustered", "Dispersed")
-)
+  # Calculate Moran's I for sampling effort
+  moran_test <- moran.test(kenya_grid_complete$n_records, weights, zero.policy = TRUE)
 
-print(moran_results)
-saveRDS(moran_results, file.path(data_outputs, "spatial_autocorrelation.rds"))
+  moran_results <- data.frame(
+    variable = "sampling_effort",
+    morans_i = moran_test$estimate["Moran I statistic"],
+    expectation = moran_test$estimate["Expectation"],
+    variance = moran_test$estimate["Variance"],
+    p_value = moran_test$p.value,
+    interpretation = ifelse(moran_test$statistic > 0, "Clustered", "Dispersed")
+  )
+
+  print(moran_results)
+  saveRDS(moran_results, file.path(data_outputs, "spatial_autocorrelation.rds"))
+  message("  ✓ Spatial autocorrelation completed")
+}
 
 # 3. ACCESSIBILITY BIAS ASSESSMENT ---------------------------------------------
 message("\n=== Assessing accessibility bias ===")
@@ -176,17 +211,12 @@ kenya_df <- kenya_data %>%
   as.data.frame()
 
 # Create 10-year period breaks
-message("Creating 10-year period breaks...")
 year_range <- range(kenya_df$year, na.rm = TRUE)
 period_breaks <- seq(
   floor(year_range[1] / 10) * 10,  # Round down to nearest decade
   ceiling(year_range[2] / 10) * 10,  # Round up to nearest decade
   by = 10
 )
-
-message(sprintf("Period breaks: %s to %s",
-                min(period_breaks), max(period_breaks)))
-message(sprintf("Number of periods: %d", length(period_breaks) - 1))
 
 # Add period labels to data
 kenya_df <- kenya_df %>%
@@ -200,16 +230,22 @@ kenya_df <- kenya_df %>%
   )
 
 # Summary of records by period
-period_summary <- kenya_df %>%
-  group_by(period) %>%
-  summarise(
-    n_records = n(),
-    n_species = n_distinct(species),
-    .groups = "drop"
-  )
+if (!file.exists(file.path(data_outputs, "records_by_period.rds"))) {
+  period_summary <- kenya_df %>%
+    group_by(period) %>%
+    summarise(
+      n_records = n(),
+      n_species = n_distinct(species),
+      .groups = "drop"
+    )
+  saveRDS(period_summary, file.path(data_outputs, "records_by_period.rds"))
+} else {
+  period_summary <- readRDS(file.path(data_outputs, "records_by_period.rds"))
+}
 
+message(sprintf("Period breaks: %s to %s", min(period_breaks), max(period_breaks)))
+message(sprintf("Number of periods: %d", length(period_breaks) - 1))
 print(period_summary)
-saveRDS(period_summary, file.path(data_outputs, "records_by_period.rds"))
 
 # Define taxonomic levels and other grouping features for analysis
 identifiers <- list(
@@ -217,134 +253,152 @@ identifiers <- list(
   grouping = c("period")  # Can add more grouping features here
 )
 
-# Record number assessment - Run for each taxonomic level
-message("\n--- Assessing record numbers by taxonomic level ---")
-record_assessments <- list()
+# Check if all occAssess assessments already exist
+all_assessments_exist <- file.exists(file.path(data_outputs, "occassess_records_by_taxlevel.rds")) &&
+                         file.exists(file.path(data_outputs, "occassess_species_by_taxlevel.rds")) &&
+                         file.exists(file.path(data_outputs, "occassess_coverage_by_taxlevel.rds")) &&
+                         file.exists(file.path(data_outputs, "assessment_summary.rds"))
 
-for (tax_level in identifiers$taxonomic) {
-  message(sprintf("  Running assessRecordNumber for identifier: %s", tax_level))
+if (all_assessments_exist) {
+  message("  ℹ All occAssess assessments already completed. Loading from files...")
+  record_assessments <- readRDS(file.path(data_outputs, "occassess_records_by_taxlevel.rds"))
+  species_assessments <- readRDS(file.path(data_outputs, "occassess_species_by_taxlevel.rds"))
+  coverage_assessments <- readRDS(file.path(data_outputs, "occassess_coverage_by_taxlevel.rds"))
+  assessment_summary <- readRDS(file.path(data_outputs, "assessment_summary.rds"))
+  print(assessment_summary)
+} else {
+  message("  → Running occAssess assessments...")
 
-  # Skip if column has all NA values
-  if (all(is.na(kenya_df[[tax_level]]))) {
-    message(sprintf("  Skipping %s - all values are NA", tax_level))
-    next
+  # Record number assessment - Run for each taxonomic level
+  message("\n--- Assessing record numbers by taxonomic level ---")
+  record_assessments <- list()
+
+  for (tax_level in identifiers$taxonomic) {
+    message(sprintf("  Running assessRecordNumber for identifier: %s", tax_level))
+
+    # Skip if column has all NA values
+    if (all(is.na(kenya_df[[tax_level]]))) {
+      message(sprintf("  Skipping %s - all values are NA", tax_level))
+      next
+    }
+
+    tryCatch({
+      record_assessments[[tax_level]] <- assessRecordNumber(
+        dat = kenya_df,
+        periods = period_breaks,
+        species = "species",
+        x = "decimalLongitude",
+        y = "decimalLatitude",
+        year = "year",
+        spatialUncertainty = "coordinateUncertaintyInMeters",
+        identifier = tax_level
+      )
+      message(sprintf("  ✓ Completed assessment for %s", tax_level))
+    }, error = function(e) {
+      message(sprintf("  ✗ Error in assessment for %s: %s", tax_level, e$message))
+    })
   }
 
+  # Also run assessment grouped by period
+  message("  Running assessRecordNumber for identifier: period")
   tryCatch({
-    record_assessments[[tax_level]] <- assessRecordNumber(
-      dat = kenya_df,
+    record_assessments[["period"]] <- assessRecordNumber(
+      dat = kenya_df %>% filter(!is.na(period)),
       periods = period_breaks,
       species = "species",
       x = "decimalLongitude",
       y = "decimalLatitude",
       year = "year",
       spatialUncertainty = "coordinateUncertaintyInMeters",
-      identifier = tax_level
+      identifier = "period"
     )
-    message(sprintf("  ✓ Completed assessment for %s", tax_level))
+    message("  ✓ Completed assessment for period")
   }, error = function(e) {
-    message(sprintf("  ✗ Error in assessment for %s: %s", tax_level, e$message))
+    message(sprintf("  ✗ Error in assessment for period: %s", e$message))
   })
-}
 
-# Also run assessment grouped by period
-message("  Running assessRecordNumber for identifier: period")
-tryCatch({
-  record_assessments[["period"]] <- assessRecordNumber(
-    dat = kenya_df %>% filter(!is.na(period)),
-    periods = period_breaks,
-    species = "species",
-    x = "decimalLongitude",
-    y = "decimalLatitude",
-    year = "year",
-    spatialUncertainty = "coordinateUncertaintyInMeters",
-    identifier = "period"
+  # Species number assessment - Run for different taxonomic levels
+  message("\n--- Assessing species numbers by taxonomic level ---")
+  species_assessments <- list()
+
+  for (tax_level in identifiers$taxonomic) {
+    message(sprintf("  Running assessSpeciesNumber for %s", tax_level))
+
+    if (all(is.na(kenya_df[[tax_level]]))) {
+      message(sprintf("  Skipping %s - all values are NA", tax_level))
+      next
+    }
+
+    tryCatch({
+      species_assessments[[tax_level]] <- assessSpeciesNumber(
+        dat = kenya_df,
+        xCol = "decimalLongitude",
+        yCol = "decimalLatitude",
+        gridRes = 10000,
+        logCount = TRUE,
+        speciesCol = tax_level
+      )
+      message(sprintf("  ✓ Completed assessment for %s", tax_level))
+    }, error = function(e) {
+      message(sprintf("  ✗ Error in assessment for %s: %s", tax_level, e$message))
+    })
+  }
+
+  # Species coverage assessment - Run for different taxonomic levels
+  message("\n--- Assessing species coverage by taxonomic level ---")
+  coverage_assessments <- list()
+
+  for (tax_level in identifiers$taxonomic) {
+    message(sprintf("  Running assessSpeciesCoverage for %s", tax_level))
+
+    if (all(is.na(kenya_df[[tax_level]]))) {
+      message(sprintf("  Skipping %s - all values are NA", tax_level))
+      next
+    }
+
+    tryCatch({
+      coverage_assessments[[tax_level]] <- assessSpeciesCoverage(
+        dat = kenya_df,
+        xCol = "decimalLongitude",
+        yCol = "decimalLatitude",
+        speciesCol = tax_level,
+        minCoords = 5  # Minimum 5 occurrences per taxonomic unit
+      )
+      message(sprintf("  ✓ Completed assessment for %s", tax_level))
+    }, error = function(e) {
+      message(sprintf("  ✗ Error in assessment for %s: %s", tax_level, e$message))
+    })
+  }
+
+  # Save occAssess results
+  message("\n--- Saving occAssess results ---")
+  saveRDS(record_assessments, file.path(data_outputs, "occassess_records_by_taxlevel.rds"))
+  saveRDS(species_assessments, file.path(data_outputs, "occassess_species_by_taxlevel.rds"))
+  saveRDS(coverage_assessments, file.path(data_outputs, "occassess_coverage_by_taxlevel.rds"))
+
+  # Also save the main species-level assessment for backward compatibility
+  if (!is.null(record_assessments[["species"]])) {
+    saveRDS(record_assessments[["species"]], file.path(data_outputs, "occassess_records.rds"))
+  }
+  if (!is.null(species_assessments[["species"]])) {
+    saveRDS(species_assessments[["species"]], file.path(data_outputs, "occassess_species.rds"))
+  }
+  if (!is.null(coverage_assessments[["species"]])) {
+    saveRDS(coverage_assessments[["species"]], file.path(data_outputs, "occassess_coverage.rds"))
+  }
+
+  # Create summary of assessments completed
+  assessment_summary <- data.frame(
+    taxonomic_level = identifiers$taxonomic,
+    record_assessment = sapply(identifiers$taxonomic, function(x) !is.null(record_assessments[[x]])),
+    species_assessment = sapply(identifiers$taxonomic, function(x) !is.null(species_assessments[[x]])),
+    coverage_assessment = sapply(identifiers$taxonomic, function(x) !is.null(coverage_assessments[[x]]))
   )
-  message("  ✓ Completed assessment for period")
-}, error = function(e) {
-  message(sprintf("  ✗ Error in assessment for period: %s", e$message))
-})
 
-# Species number assessment - Run for different taxonomic levels
-message("\n--- Assessing species numbers by taxonomic level ---")
-species_assessments <- list()
-
-for (tax_level in identifiers$taxonomic) {
-  message(sprintf("  Running assessSpeciesNumber for %s", tax_level))
-
-  if (all(is.na(kenya_df[[tax_level]]))) {
-    message(sprintf("  Skipping %s - all values are NA", tax_level))
-    next
-  }
-
-  tryCatch({
-    species_assessments[[tax_level]] <- assessSpeciesNumber(
-      dat = kenya_df,
-      xCol = "decimalLongitude",
-      yCol = "decimalLatitude",
-      gridRes = 10000,
-      logCount = TRUE,
-      speciesCol = tax_level
-    )
-    message(sprintf("  ✓ Completed assessment for %s", tax_level))
-  }, error = function(e) {
-    message(sprintf("  ✗ Error in assessment for %s: %s", tax_level, e$message))
-  })
+  print(assessment_summary)
+  saveRDS(assessment_summary, file.path(data_outputs, "assessment_summary.rds"))
+  message("  ✓ occAssess assessments completed")
 }
-
-# Species coverage assessment - Run for different taxonomic levels
-message("\n--- Assessing species coverage by taxonomic level ---")
-coverage_assessments <- list()
-
-for (tax_level in identifiers$taxonomic) {
-  message(sprintf("  Running assessSpeciesCoverage for %s", tax_level))
-
-  if (all(is.na(kenya_df[[tax_level]]))) {
-    message(sprintf("  Skipping %s - all values are NA", tax_level))
-    next
-  }
-
-  tryCatch({
-    coverage_assessments[[tax_level]] <- assessSpeciesCoverage(
-      dat = kenya_df,
-      xCol = "decimalLongitude",
-      yCol = "decimalLatitude",
-      speciesCol = tax_level,
-      minCoords = 5  # Minimum 5 occurrences per taxonomic unit
-    )
-    message(sprintf("  ✓ Completed assessment for %s", tax_level))
-  }, error = function(e) {
-    message(sprintf("  ✗ Error in assessment for %s: %s", tax_level, e$message))
-  })
-}
-
-# Save occAssess results
-message("\n--- Saving occAssess results ---")
-saveRDS(record_assessments, file.path(data_outputs, "occassess_records_by_taxlevel.rds"))
-saveRDS(species_assessments, file.path(data_outputs, "occassess_species_by_taxlevel.rds"))
-saveRDS(coverage_assessments, file.path(data_outputs, "occassess_coverage_by_taxlevel.rds"))
-
-# Also save the main species-level assessment for backward compatibility
-if (!is.null(record_assessments[["species"]])) {
-  saveRDS(record_assessments[["species"]], file.path(data_outputs, "occassess_records.rds"))
-}
-if (!is.null(species_assessments[["species"]])) {
-  saveRDS(species_assessments[["species"]], file.path(data_outputs, "occassess_species.rds"))
-}
-if (!is.null(coverage_assessments[["species"]])) {
-  saveRDS(coverage_assessments[["species"]], file.path(data_outputs, "occassess_coverage.rds"))
-}
-
-# Create summary of assessments completed
-assessment_summary <- data.frame(
-  taxonomic_level = identifiers$taxonomic,
-  record_assessment = sapply(identifiers$taxonomic, function(x) !is.null(record_assessments[[x]])),
-  species_assessment = sapply(identifiers$taxonomic, function(x) !is.null(species_assessments[[x]])),
-  coverage_assessment = sapply(identifiers$taxonomic, function(x) !is.null(coverage_assessments[[x]]))
-)
-
-print(assessment_summary)
-saveRDS(assessment_summary, file.path(data_outputs, "assessment_summary.rds"))
 
 # 5. ENVIRONMENTAL BIAS --------------------------------------------------------
 message("\n=== Assessing environmental bias ===")
