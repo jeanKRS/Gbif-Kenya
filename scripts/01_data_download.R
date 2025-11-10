@@ -122,13 +122,14 @@ flags <- clean_coordinates(
 )
 
 # Add flags to dataset
+# Note: value = "flagged" returns TRUE for problematic records, so negate for clean records
 kenya_clean <- kenya_clean %>%
-  mutate(coord_clean = flags$.summary)
+  mutate(coord_clean = !flags)
 
 # Summary of flagged records
 message("Coordinate cleaning results:")
-message("  Records flagged: ", sum(!flags$.summary))
-message("  Clean records: ", sum(flags$.summary))
+message("  Records flagged: ", sum(flags))
+message("  Clean records: ", sum(!flags))
 
 # Keep only clean records
 kenya_final <- kenya_clean %>%
