@@ -1,0 +1,96 @@
+# R and RStudio files
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Data files (too large for git)
+data/raw/*
+data/processed/*.rds
+data/processed/*.csv
+data/outputs/*
+
+# But keep directory structure
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/outputs/.gitkeep
+
+# Figure files (regenerated)
+figures/*.png
+figures/*.pdf
+figures/*.jpg
+
+# Keep example figures
+!figures/.gitkeep
+
+# Rendered documents
+docs/*.html
+docs/*.pdf
+docs/*.docx
+docs/*_files/
+
+# But keep Rmd and references
+!docs/*.Rmd
+!docs/*.bib
+!docs/*.csl
+
+# Log files
+*.log
+*.txt
+analysis_log.txt
+
+# Temporary files
+*~
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Environment files (contain credentials)
+.Renviron
+.env
+
+# renv files (optional - uncomment if not sharing renv)
+# renv/library/
+# renv/local/
+# renv/cellar/
+
+# Keep renv activation and lock
+!renv/activate.R
+!renv.lock
+!renv/settings.dcf
+
+# Cache directories
+*_cache/
+cache/
+
+# Package development
+*.tar.gz
+*.zip
+
+# knitr and R markdown
+*.knit.md
+*.utf8.md
+
+# shiny
+rsconnect/
+
+# pkgdown
+docs/pkgdown/
+
+# Backup files
+*.bak
+*~
+
+# LaTeX intermediate files
+*.aux
+*.out
+*.toc
+*.synctex.gz
+
+# Large environmental data (downloaded on-the-fly)
+*.tif
+*.asc
+*.bil
+*.grd
+*.gri

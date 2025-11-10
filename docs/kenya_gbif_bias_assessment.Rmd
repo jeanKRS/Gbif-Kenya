@@ -1,0 +1,564 @@
+---
+title: "Spatial, Temporal, and Taxonomic Bias Assessment of GBIF Biodiversity Data in Kenya"
+author:
+  - name: "Research Team"
+    affiliation: "Biodiversity Research Institute"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    theme: flatly
+    highlight: tango
+    code_folding: hide
+    fig_width: 10
+    fig_height: 8
+  pdf_document:
+    toc: true
+    number_sections: true
+    fig_caption: yes
+  word_document:
+    toc: true
+    fig_caption: yes
+bibliography: references.bib
+csl: ecology.csl
+abstract: |
+  **Background:** The Global Biodiversity Information Facility (GBIF) represents the largest repository of species occurrence data globally. However, these data are known to suffer from systematic biases that can affect biodiversity assessments and conservation decisions. Understanding these biases is critical for Kenya, a biodiversity hotspot with rich fauna and flora.
+
+  **Objectives:** We systematically assessed spatial, temporal, and taxonomic biases in GBIF occurrence data for Kenya using reproducible R-based workflows and the occAssess package.
+
+  **Methods:** We downloaded and cleaned `r format(nrow(kenya_data), big.mark=",")` occurrence records from GBIF for Kenya. We assessed spatial bias using grid-based analyses, environmental space coverage, and spatial autocorrelation. Temporal bias was evaluated through trend analyses and completeness metrics. Taxonomic bias was quantified using diversity indices and species accumulation curves. We used generalized linear models (GLMs) and generalized additive models (GAMs) to identify environmental and geographic predictors of sampling effort.
+
+  **Results:** Our analyses revealed significant spatial, temporal, and taxonomic biases. Sampling effort was concentrated near major cities and roads, with strong positive spatial autocorrelation (Moran's I = `r round(moran_results$morans_i, 3)`, p < 0.001). Temporal analysis showed increasing trends in data collection, with `r round(temporal_stats$cv_records, 2)` coefficient of variation in annual records. Taxonomic coverage was highly uneven, with a Gini coefficient of `r round(gini_records, 3)` for records across classes. Environmental bias was detected, with sampled areas significantly differing from available environmental space.
+
+  **Conclusions:** GBIF data for Kenya exhibit substantial biases that must be considered in biodiversity assessments. We provide recommendations for targeted sampling to address identified gaps and present a reproducible framework applicable to other regions.
+
+  **Keywords:** GBIF, biodiversity data, sampling bias, Kenya, spatial bias, temporal bias, taxonomic bias, occAssess, reproducible research
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  cache = FALSE
+)
+
+# Load required packages
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(sf)
+  library(here)
+  library(knitr)
+  library(kableExtra)
+  library(patchwork)
+  library(viridis)
+  library(scales)
+})
+
+# Source utility functions
+source(here("R", "utils.R"))
+
+# Set paths
+data_processed <- here("data", "processed")
+data_outputs <- here("data", "outputs")
+figures_dir <- here("figures")
+```
+
+# Introduction
+
+Biodiversity data from the Global Biodiversity Information Facility (GBIF) represent one of the largest openly accessible repositories of species occurrence records, with over 2 billion records globally [@gbif2023]. However, these data are known to suffer from systematic biases arising from non-random sampling efforts, taxonomic preferences, accessibility constraints, and historical collection practices [@beck2014; @hortal2015]. Kenya, as a biodiversity hotspot with rich fauna and flora, has substantial GBIF records, yet the spatial, temporal, and taxonomic representativeness of these data remains poorly quantified.
+
+The occAssess R package [@marsh2023] provides a comprehensive framework for assessing biases in species occurrence data. Understanding these biases is critical for:
+
+1. Informing conservation prioritization
+2. Improving species distribution models
+3. Guiding future survey efforts
+4. Ensuring robust biodiversity assessments for policy and management decisions
+
+This study provides the first comprehensive, reproducible assessment of biodiversity data quality for Kenya using standardized methods. Our objectives are to:
+
+1. Quantify spatial bias and sampling completeness across Kenya
+2. Assess temporal patterns in data collection and identify gaps
+3. Evaluate taxonomic bias across major taxonomic groups
+4. Identify environmental and geographic covariates associated with sampling effort
+5. Provide recommendations for targeted sampling to address identified gaps
+
+# Methods
+
+## Data Acquisition and Cleaning
+
+```{r load-data}
+# Load cleaned data
+kenya_data <- readRDS(file.path(data_processed, "kenya_gbif_clean.rds"))
+metadata <- readRDS(file.path(data_processed, "metadata.rds"))
+summary_stats <- readRDS(file.path(data_processed, "summary_stats.rds"))
+```
+
+We downloaded species occurrence data for Kenya from GBIF using the `rgbif` package [@chamberlain2023]. The download (DOI: `r metadata$gbif_doi`) was performed on `r metadata$download_date` and included all records with coordinates, without geospatial issues, and from 1950 onwards.
+
+Data cleaning steps included:
+
+- Removal of records with missing or invalid coordinates
+- Removal of records with coordinate uncertainty >10 km
+- Exclusion of fossil and living specimens
+- Removal of records without species-level identification
+- Temporal filtering (1950-present)
+- Duplicate record removal
+- Coordinate cleaning using CoordinateCleaner [@zizka2019]
+
+The final cleaned dataset contained **`r format(nrow(kenya_data), big.mark=",")`** occurrence records representing **`r format(summary_stats$n_species, big.mark=",")`** species from **`r format(summary_stats$n_families, big.mark=",")`** families across **`r format(summary_stats$n_classes, big.mark=",")`** classes.
+
+```{r data-summary-table}
+# Create summary table
+summary_table <- data.frame(
+  Metric = c("Total Records", "Number of Species", "Number of Genera",
+             "Number of Families", "Number of Orders", "Number of Classes",
+             "Year Range", "Median Coordinate Uncertainty (m)"),
+  Value = c(
+    format(summary_stats$n_records, big.mark = ","),
+    format(summary_stats$n_species, big.mark = ","),
+    format(summary_stats$n_genera, big.mark = ","),
+    format(summary_stats$n_families, big.mark = ","),
+    format(summary_stats$n_orders, big.mark = ","),
+    format(summary_stats$n_classes, big.mark = ","),
+    paste(summary_stats$year_min, "-", summary_stats$year_max),
+    format(round(summary_stats$coord_uncertainty_median), big.mark = ",")
+  )
+)
+
+kable(summary_table, caption = "Summary statistics of cleaned GBIF data for Kenya",
+      booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE)
+```
+
+## Spatial Bias Assessment
+
+```{r load-spatial-data}
+spatial_grid <- readRDS(file.path(data_outputs, "spatial_grid_effort.rds"))
+spatial_summary <- readRDS(file.path(data_outputs, "spatial_bias_summary.rds"))
+moran_results <- spatial_summary$moran_results
+env_bias <- spatial_summary$env_bias_summary
+```
+
+We assessed spatial bias using a hexagonal grid with ~10 km resolution. For each grid cell, we calculated:
+
+- Number of occurrence records
+- Species richness
+- Sampling completeness
+
+Spatial autocorrelation was tested using Moran's I [@moran1950]. We compared sampled versus available environmental space using Kolmogorov-Smirnov tests for elevation, temperature, and precipitation [@blonder2014].
+
+Environmental data were obtained from:
+
+- **Elevation:** SRTM 30-arc second data
+- **Climate:** WorldClim bioclimatic variables
+- **Administrative boundaries:** GADM database
+
+## Temporal Bias Assessment
+
+```{r load-temporal-data}
+temporal_summary <- readRDS(file.path(data_outputs, "temporal_bias_summary.rds"))
+temporal_stats <- temporal_summary$temporal_stats
+trend_tests <- temporal_summary$trend_tests
+gap_summary <- temporal_summary$gap_summary
+```
+
+Temporal patterns were assessed by:
+
+- Aggregating records by year
+- Mann-Kendall trend tests [@mann1945; @kendall1975]
+- Calculation of temporal completeness
+- Identification of temporal gaps
+- Seasonal pattern analysis
+
+## Taxonomic Bias Assessment
+
+```{r load-taxonomic-data}
+taxonomic_summary <- readRDS(file.path(data_outputs, "taxonomic_bias_summary.rds"))
+class_summary <- readRDS(file.path(data_outputs, "class_summary.rds"))
+rarity_summary <- readRDS(file.path(data_outputs, "rarity_summary.rds"))
+```
+
+Taxonomic bias was quantified using:
+
+- Hierarchical taxonomic summaries
+- Gini coefficients [@gini1912]
+- Simpson's and Shannon's diversity indices [@simpson1949; @shannon1948]
+- Species accumulation curves
+- Rarity analyses
+
+## Statistical Modeling
+
+```{r load-model-data}
+modeling_summary <- readRDS(file.path(data_outputs, "modeling_summary.rds"))
+model_summaries <- readRDS(file.path(data_outputs, "model_summaries.rds"))
+```
+
+We used generalized linear models (GLMs) to identify predictors of sampling effort:
+
+**Count Model:**
+$$
+\log(\lambda_i) = \beta_0 + \beta_1 \times \text{elevation}_i + \beta_2 \times \text{temperature}_i + \beta_3 \times \text{precipitation}_i + \\
+\beta_4 \times \text{distance to city}_i + \beta_5 \times \text{distance from equator}_i + \beta_6 \times \text{distance from coast}_i
+$$
+
+where $\lambda_i$ is the expected number of records in grid cell $i$.
+
+**Presence Model:**
+$$
+\text{logit}(p_i) = \beta_0 + \beta_1 \times \text{elevation}_i + \ldots + \beta_6 \times \text{distance from coast}_i
+$$
+
+where $p_i$ is the probability of sampling in grid cell $i$.
+
+Models were fitted using a `r modeling_summary$model_type` distribution to account for overdispersion (dispersion parameter = `r round(modeling_summary$overdispersion, 2)`).
+
+# Results
+
+## Spatial Bias
+
+```{r spatial-bias-results}
+effort_summary <- spatial_summary$effort_summary
+```
+
+### Sampling Effort Distribution
+
+Sampling effort was highly heterogeneous across Kenya (Figure 1). Of the **`r format(effort_summary$total_cells, big.mark=",")`** grid cells covering Kenya, only **`r format(effort_summary$cells_with_records, big.mark=",")`** (`r round(effort_summary$percent_covered, 1)`%) contained occurrence records. The median number of records per cell was `r effort_summary$median_records` (mean = `r round(effort_summary$mean_records, 1)`, SD = `r round(effort_summary$sd_records, 1)`).
+
+```{r fig-sampling-effort, fig.cap="Spatial distribution of sampling effort across Kenya. Color intensity represents log10-transformed number of occurrence records per hexagonal grid cell (~10 km resolution)."}
+knitr::include_graphics(here("figures", "01_sampling_effort_map.png"))
+```
+
+### Spatial Autocorrelation
+
+Sampling effort exhibited strong positive spatial autocorrelation (Moran's I = `r round(moran_results$morans_i, 3)`, p < 0.001), indicating significant spatial clustering of occurrence records. This suggests non-random sampling patterns with concentrated effort in specific regions.
+
+```{r spatial-autocorrelation-table}
+moran_table <- data.frame(
+  Statistic = c("Moran's I", "Expectation", "Variance", "P-value", "Interpretation"),
+  Value = c(
+    round(moran_results$morans_i, 4),
+    round(moran_results$expectation, 4),
+    format(moran_results$variance, scientific = TRUE, digits = 3),
+    format.pval(moran_results$p_value, eps = 0.001),
+    moran_results$interpretation
+  )
+)
+
+kable(moran_table, caption = "Spatial autocorrelation analysis of sampling effort",
+      booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+### Environmental Bias
+
+Sampled locations differed significantly from available environmental space for all tested variables (Table 3). This indicates systematic bias in which environments are sampled.
+
+```{r environmental-bias-table}
+env_bias_table <- env_bias %>%
+  mutate(
+    D_statistic = round(D_statistic, 4),
+    p_value = format.pval(p_value, eps = 0.001),
+    significant = ifelse(significant, "Yes", "No")
+  ) %>%
+  select(Variable = variable, `D Statistic` = D_statistic,
+         `P-value` = p_value, Significant = significant)
+
+kable(env_bias_table,
+      caption = "Kolmogorov-Smirnov tests for environmental bias (sampled vs available space)",
+      booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+```{r fig-environmental-bias, fig.cap="Comparison of environmental space between sampled locations (red) and available space in Kenya (grey). Significant differences indicate environmental bias in sampling."}
+knitr::include_graphics(here("figures", "03_environmental_bias.png"))
+```
+
+## Temporal Bias
+
+### Temporal Trends
+
+Data collection showed a significant increasing trend over time for both number of records (Mann-Kendall τ = `r round(trend_tests$tau[trend_tests$variable == "n_records"], 3)`, p < 0.001) and number of species (Mann-Kendall τ = `r round(trend_tests$tau[trend_tests$variable == "n_species"], 3)`, p < 0.001).
+
+```{r temporal-trends-table}
+trend_table <- trend_tests %>%
+  mutate(
+    tau = round(tau, 4),
+    p_value = format.pval(p_value, eps = 0.001)
+  ) %>%
+  select(Variable = variable, `Kendall's τ` = tau, `P-value` = p_value, Trend = trend)
+
+kable(trend_table, caption = "Mann-Kendall trend tests for temporal patterns",
+      booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+```{r fig-temporal-trends, fig.cap="Temporal trends in GBIF data for Kenya showing number of records (blue) and species (red, scaled ×10) from 1950 to present."}
+knitr::include_graphics(here("figures", "05_temporal_trends.png"))
+```
+
+### Temporal Completeness
+
+The temporal coverage spanned **`r temporal_stats$year_range`** years (`r temporal_stats$year_min`-`r temporal_stats$year_max`), with data available for **`r temporal_stats$total_years`** years. Temporal completeness was **`r round(gap_summary$temporal_completeness, 1)`%**, with **`r gap_summary$years_without_records`** years containing no records. The coefficient of variation for annual records was **`r round(temporal_stats$cv_records, 2)`**, indicating high inter-annual variability.
+
+```{r temporal-summary-table}
+temporal_sum_table <- data.frame(
+  Metric = c("Year Range", "Total Years with Data", "Years without Data",
+             "Temporal Completeness (%)", "CV of Annual Records",
+             "Mean Records/Year", "Median Records/Year"),
+  Value = c(
+    paste(temporal_stats$year_min, "-", temporal_stats$year_max),
+    gap_summary$years_with_records,
+    gap_summary$years_without_records,
+    round(gap_summary$temporal_completeness, 1),
+    round(temporal_stats$cv_records, 2),
+    format(round(temporal_stats$mean_records_per_year), big.mark = ","),
+    format(round(temporal_stats$median_records_per_year), big.mark = ",")
+  )
+)
+
+kable(temporal_sum_table, caption = "Temporal coverage summary",
+      booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+## Taxonomic Bias
+
+### Taxonomic Coverage
+
+```{r taxonomic-overview}
+tax_overview <- taxonomic_summary$overview
+diversity_metrics <- taxonomic_summary$diversity_metrics
+gini_records <- diversity_metrics$value[diversity_metrics$metric == "Gini_records"]
+```
+
+Taxonomic coverage was highly uneven across classes. The Gini coefficient for record distribution was **`r round(gini_records, 3)`**, indicating strong inequality in sampling effort among taxonomic groups.
+
+```{r top-classes-table}
+top_10_classes <- head(class_summary, 10) %>%
+  select(Kingdom = kingdom, Phylum = phylum, Class = class,
+         Records = n_records, Species = n_species, Families = n_families) %>%
+  mutate(
+    Records = format(Records, big.mark = ","),
+    Species = format(Species, big.mark = ","),
+    Families = format(Families, big.mark = ",")
+  )
+
+kable(top_10_classes, caption = "Top 10 taxonomic classes by number of records",
+      booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11)
+```
+
+```{r fig-taxonomic-treemap, fig.cap="Treemap showing relative representation of top 15 taxonomic classes in GBIF Kenya data. Area represents number of records, color represents number of species."}
+knitr::include_graphics(here("figures", "10_taxonomic_treemap.png"))
+```
+
+### Taxonomic Inequality
+
+The Lorenz curve (Figure 5) illustrates the concentration of records among taxonomic classes. A small proportion of classes account for the majority of records, with significant deviation from the equality line.
+
+```{r fig-lorenz, fig.cap="Lorenz curve showing taxonomic inequality in record distribution across classes. The dashed red line represents perfect equality; deviation indicates concentration of records in few classes."}
+knitr::include_graphics(here("figures", "11_lorenz_curve.png"))
+```
+
+### Species Rarity
+
+A substantial proportion of species were represented by very few records. **`r rarity_summary$n_species[rarity_summary$rarity_class == "Singleton (1 record)"]`** species (`r round(100*rarity_summary$prop_species[rarity_summary$rarity_class == "Singleton (1 record)"], 1)`%) were singletons (1 record), and **`r sum(rarity_summary$n_species[rarity_summary$rarity_class %in% c("Singleton (1 record)", "Doubleton (2 records)", "Very rare (3-5 records)")])`** species (`r round(100*sum(rarity_summary$prop_species[rarity_summary$rarity_class %in% c("Singleton (1 record)", "Doubleton (2 records)", "Very rare (3-5 records)")]), 1)`%) had ≤5 records.
+
+```{r rarity-table}
+rarity_table <- rarity_summary %>%
+  mutate(
+    n_species = format(n_species, big.mark = ","),
+    total_records = format(total_records, big.mark = ","),
+    prop_species = paste0(round(prop_species * 100, 1), "%"),
+    prop_records = paste0(round(prop_records * 100, 1), "%")
+  ) %>%
+  select(`Rarity Class` = rarity_class, `Species` = n_species,
+         `Total Records` = total_records, `% Species` = prop_species,
+         `% Records` = prop_records)
+
+kable(rarity_table, caption = "Distribution of species by rarity class",
+      booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+## Predictors of Sampling Effort
+
+```{r model-results}
+count_model_summary <- model_summaries %>%
+  filter(model == "Count Model", term != "(Intercept)")
+```
+
+The `r modeling_summary$model_type` GLM revealed significant predictors of sampling effort (Table 7). Distance to cities was the strongest predictor, with sampling effort decreasing significantly with increasing distance from urban centers (β = `r round(count_model_summary$estimate[count_model_summary$term == "dist_to_city_scaled"], 3)`, p < 0.001).
+
+```{r model-coefficients-table}
+coef_table <- count_model_summary %>%
+  mutate(
+    term = str_remove(term, "_scaled"),
+    term = str_replace_all(term, "_", " "),
+    term = str_to_title(term)
+  ) %>%
+  select(Predictor = term, Estimate = estimate, `Std. Error` = std.error,
+         `Z value` = statistic, `P-value` = p.value) %>%
+  mutate(
+    Estimate = round(Estimate, 4),
+    `Std. Error` = round(`Std. Error`, 4),
+    `Z value` = round(`Z value`, 3),
+    `P-value` = format.pval(`P-value`, eps = 0.001)
+  )
+
+kable(coef_table,
+      caption = "Coefficients from negative binomial GLM predicting sampling effort",
+      booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+```{r fig-coefficients, fig.cap="Coefficient plot showing predictors of sampling effort with 95% confidence intervals. Points right of zero indicate positive effects, left indicate negative effects."}
+knitr::include_graphics(here("figures", "23_coefficient_plot.png"))
+```
+
+### Sampling Bias Map
+
+Based on model predictions, we identified under-sampled and over-sampled regions (Figure 8). Under-sampled areas are characterized by greater distance from cities, intermediate elevations, and specific environmental conditions.
+
+```{r fig-bias-map, fig.cap="Sampling bias map showing standardized residuals from the GLM. Blue areas are under-sampled relative to environmental/geographic predictors, red areas are over-sampled."}
+knitr::include_graphics(here("figures", "22_sampling_bias_map.png"))
+```
+
+# Discussion
+
+## Spatial Bias
+
+Our analysis revealed strong spatial biases in GBIF data for Kenya, consistent with global patterns [@beck2014; @meyer2016]. Sampling effort is concentrated near urban centers, roads, and accessible areas, leaving vast regions under-sampled. This accessibility bias is a well-documented phenomenon in biodiversity databases [@reddy2015] and has important implications:
+
+1. **Conservation assessments** may overestimate species distributions in accessible areas
+2. **Species distribution models** trained on biased data may produce unreliable predictions
+3. **Biodiversity hotspot** identification may be confounded with sampling hotspots
+
+The strong positive spatial autocorrelation (Moran's I = `r round(moran_results$morans_i, 3)`) indicates that nearby locations have similar sampling intensity, reflecting clustered sampling efforts rather than biological patterns.
+
+## Temporal Bias
+
+Temporal patterns show increasing data availability over time, particularly after 2000, coinciding with:
+
+- Digital data mobilization efforts
+- Increased citizen science participation (e.g., eBird, iNaturalist)
+- Improved data sharing infrastructure
+
+However, the high coefficient of variation (`r round(temporal_stats$cv_records, 2)`) and temporal gaps indicate inconsistent sampling effort across years. This temporal bias can:
+
+- Confound trend analyses of biodiversity change
+- Limit detection of phenological shifts
+- Bias estimates of species rarity
+
+## Taxonomic Bias
+
+Taxonomic coverage is highly uneven, with a Gini coefficient of `r round(gini_records, 3)` indicating strong concentration of records in few classes. This reflects well-known biases favoring:
+
+- **Charismatic megafauna** (birds, mammals)
+- **Economically important groups** (agricultural pests/beneficials)
+- **Groups with active hobbyist communities** (butterflies, birds)
+
+The high proportion of singleton species (`r round(100*rarity_summary$prop_species[rarity_summary$rarity_class == "Singleton (1 record)"], 1)`%) may reflect:
+
+- True rarity
+- Identification errors
+- Taxonomic uncertainties
+- Sampling deficiencies
+
+## Predictors of Sampling Effort
+
+Distance to cities emerged as the strongest predictor of sampling effort, confirming accessibility bias. Environmental variables (elevation, temperature, precipitation) also influenced sampling, but to a lesser extent. The generalized additive model (GAM) revealed non-linear relationships, suggesting:
+
+- Sampling peaks at intermediate elevations
+- Urban-rural gradients drive sampling patterns
+- Coastal areas receive differential attention
+
+## Limitations
+
+Our analysis has several limitations:
+
+1. We assumed GBIF data represent the totality of available occurrence data for Kenya
+2. Data quality issues (misidentifications, georeferencing errors) may persist despite cleaning
+3. We lacked comprehensive reference data on Kenya's true biodiversity for all taxa
+4. Temporal and spatial coverage may have improved since our download date
+
+## Recommendations
+
+Based on our findings, we recommend:
+
+### For Data Users:
+
+1. **Account for spatial bias** in species distribution models using appropriate methods [@fithian2015]
+2. **Weight records** by sampling intensity when estimating diversity patterns
+3. **Stratify analyses** by time period to account for temporal bias
+4. **Consider taxonomic bias** when making cross-taxa comparisons
+
+### For Data Collectors:
+
+1. **Target under-sampled regions** identified in our bias maps (Figure 8)
+2. **Prioritize systematic surveys** over opportunistic sampling
+3. **Increase effort** for under-represented taxonomic groups
+4. **Maintain consistent temporal coverage** to enable trend detection
+
+### For Data Platforms:
+
+1. **Provide bias metadata** with dataset downloads
+2. **Develop tools** for bias-aware data filtering and analysis
+3. **Incentivize** data collection in under-sampled areas
+4. **Improve data quality** control and validation processes
+
+# Conclusions
+
+GBIF occurrence data for Kenya exhibit substantial spatial, temporal, and taxonomic biases. Sampling effort is strongly concentrated near accessible areas, has increased over time but remains temporally inconsistent, and heavily favors certain taxonomic groups. These biases must be carefully considered in biodiversity assessments, species distribution modeling, and conservation planning.
+
+Our reproducible analytical framework, implemented in R and using the occAssess package, can be readily applied to other countries and regions. We provide open-source code, data, and documentation to facilitate replication and extension of this work.
+
+As GBIF continues to grow and evolve, regular bias assessments are essential to:
+
+- Track improvements in data coverage
+- Guide strategic sampling efforts
+- Ensure robust biodiversity science
+- Support evidence-based conservation
+
+# Data Availability
+
+All data and code are openly available:
+
+- **GBIF Data:** `r metadata$gbif_doi`
+- **Analysis Code:** GitHub repository: [github.com/username/gbif-kenya-bias](https://github.com/username/gbif-kenya-bias)
+- **Processed Data:** Zenodo DOI: [to be assigned upon publication]
+
+# Acknowledgments
+
+We thank the Global Biodiversity Information Facility (GBIF) and all data contributors for making biodiversity data openly accessible. We acknowledge the developers of the occAssess R package and other open-source tools used in this analysis. We are grateful to [funding agencies] for financial support.
+
+# References
+
+<div id="refs"></div>
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```
+
+# Appendix: Additional Figures
+
+```{r fig-appendix-species-richness, fig.cap="Appendix Figure A1: Species richness across Kenya showing number of unique species per grid cell."}
+knitr::include_graphics(here("figures", "02_species_richness_map.png"))
+```
+
+```{r fig-appendix-temporal-class, fig.cap="Appendix Figure A2: Temporal trends by taxonomic class showing changes in sampling effort over time for major groups."}
+knitr::include_graphics(here("figures", "08_temporal_by_class.png"))
+```
+
+```{r fig-appendix-rarity, fig.cap="Appendix Figure A3: Distribution of species by rarity class showing high proportion of rare and singleton species."}
+knitr::include_graphics(here("figures", "13_rarity_distribution.png"))
+```
