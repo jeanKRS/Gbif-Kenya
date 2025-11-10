@@ -404,12 +404,17 @@ if (!inherits(primary_model, "gam")) {
   }
 
   # Fit models with different covariate combinations
+  # Explicitly use the cleaned dataset for all model updates
   models_count <- list(
     full = primary_model,
-    geographic = update(primary_model, . ~ dist_to_city_scaled + dist_from_equator + dist_from_coast_km),
-    environmental = update(primary_model, . ~ elevation_scaled + temperature_scaled + precipitation_scaled),
-    elevation_only = update(primary_model, . ~ elevation_scaled),
-    accessibility = update(primary_model, . ~ dist_to_city_scaled)
+    geographic = update(primary_model, . ~ dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+                       data = grid_model_clean),
+    environmental = update(primary_model, . ~ elevation_scaled + temperature_scaled + precipitation_scaled,
+                          data = grid_model_clean),
+    elevation_only = update(primary_model, . ~ elevation_scaled,
+                           data = grid_model_clean),
+    accessibility = update(primary_model, . ~ dist_to_city_scaled,
+                          data = grid_model_clean)
   )
 
   # AIC comparison
