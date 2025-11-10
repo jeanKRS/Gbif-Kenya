@@ -256,28 +256,137 @@ top_species <- species_freq %>%
 
 saveRDS(top_species, file.path(data_outputs, "top_50_species.rds"))
 
-# 7. OCCASSESS TAXONOMIC ASSESSMENTS -------------------------------------------
+# 7. TEMPORAL CHANGES IN TAXONOMIC COMPOSITION ---------------------------------
+message("\n=== Analyzing temporal changes in taxonomic composition ===")
+
+# Create 10-year period breaks
+year_range <- range(kenya_data$year, na.rm = TRUE)
+period_breaks <- seq(
+  floor(year_range[1] / 10) * 10,
+  ceiling(year_range[2] / 10) * 10,
+  by = 10
+)
+
+# Add period labels to data
+kenya_data_periods <- kenya_data %>%
+  mutate(
+    period = cut(year,
+                breaks = period_breaks,
+                include.lowest = TRUE,
+                right = FALSE,
+                labels = paste0(head(period_breaks, -1), "-",
+                              tail(period_breaks, -1) - 1))
+  )
+
+# Taxonomic composition by period
+period_tax_summary <- kenya_data_periods %>%
+  filter(!is.na(period), !is.na(class)) %>%
+  group_by(period, class) %>%
+  summarise(
+    n_records = n(),
+    n_species = n_distinct(species),
+    .groups = "drop"
+  )
+
+# Get top 10 classes overall
+top_10_classes <- kenya_data %>%
+  count(class, sort = TRUE) %>%
+  head(10) %>%
+  pull(class)
+
+# Filter period summary for top classes
+period_tax_top <- period_tax_summary %>%
+  filter(class %in% top_10_classes)
+
+saveRDS(period_tax_summary, file.path(data_outputs, "taxonomic_by_period.rds"))
+saveRDS(period_tax_top, file.path(data_outputs, "taxonomic_top10_by_period.rds"))
+
+# Calculate diversity metrics by period
+period_diversity <- kenya_data_periods %>%
+  filter(!is.na(period)) %>%
+  group_by(period) %>%
+  summarise(
+    n_records = n(),
+    n_species = n_distinct(species),
+    n_genera = n_distinct(genus),
+    n_families = n_distinct(family),
+    n_orders = n_distinct(order),
+    n_classes = n_distinct(class),
+    .groups = "drop"
+  )
+
+print(period_diversity)
+saveRDS(period_diversity, file.path(data_outputs, "diversity_by_period.rds"))
+
+# 8. OCCASSESS TAXONOMIC ASSESSMENTS -------------------------------------------
 message("\n=== Running occAssess taxonomic assessments ===")
 
-# Prepare data for occAssess
+# Prepare data for occAssess with taxonomic levels
 kenya_df <- kenya_data %>%
-  select(species, decimalLongitude, decimalLatitude, eventDate) %>%
+  select(species, genus, family, order, class, phylum, kingdom,
+         decimalLongitude, decimalLatitude, eventDate, year) %>%
   filter(!is.na(species)) %>%
   as.data.frame()
 
-# Species identity assessment
-message("Assessing species identity quality...")
-species_identity <- assessSpeciesID(
-  dat = kenya_df,
-  speciesCol = "species",
-  assumptions = c("singletonSpecies", "highlyCommonSpecies"),
-  singletonThreshold = 1,
-  commonThreshold = 100
+# Add period information
+kenya_df <- kenya_df %>%
+  mutate(
+    period = cut(year,
+                breaks = period_breaks,
+                include.lowest = TRUE,
+                right = FALSE,
+                labels = paste0(head(period_breaks, -1), "-",
+                              tail(period_breaks, -1) - 1))
+  )
+
+# Define taxonomic levels for analysis
+taxonomic_levels <- c("species", "genus", "family", "order", "class", "phylum", "kingdom")
+
+# Species identity assessment - Run for each taxonomic level
+message("\n--- Assessing species identity by taxonomic level ---")
+species_identity_assessments <- list()
+
+for (tax_level in taxonomic_levels) {
+  message(sprintf("  Running assessSpeciesID for %s", tax_level))
+
+  if (all(is.na(kenya_df[[tax_level]]))) {
+    message(sprintf("  Skipping %s - all values are NA", tax_level))
+    next
+  }
+
+  tryCatch({
+    species_identity_assessments[[tax_level]] <- assessSpeciesID(
+      dat = kenya_df,
+      speciesCol = tax_level,
+      assumptions = c("singletonSpecies", "highlyCommonSpecies"),
+      singletonThreshold = 1,
+      commonThreshold = 100
+    )
+    message(sprintf("  ✓ Completed identity assessment for %s", tax_level))
+  }, error = function(e) {
+    message(sprintf("  ✗ Error in identity assessment for %s: %s", tax_level, e$message))
+  })
+}
+
+# Save occAssess results
+message("\n--- Saving occAssess taxonomic results ---")
+saveRDS(species_identity_assessments, file.path(data_outputs, "occassess_species_identity_by_taxlevel.rds"))
+
+# Also save species-level assessment for backward compatibility
+if (!is.null(species_identity_assessments[["species"]])) {
+  saveRDS(species_identity_assessments[["species"]], file.path(data_outputs, "occassess_species_identity.rds"))
+}
+
+# Create summary of taxonomic assessments
+taxonomic_assessment_summary <- data.frame(
+  taxonomic_level = taxonomic_levels,
+  identity_assessment = sapply(taxonomic_levels, function(x) !is.null(species_identity_assessments[[x]]))
 )
 
-saveRDS(species_identity, file.path(data_outputs, "occassess_species_identity.rds"))
+print(taxonomic_assessment_summary)
+saveRDS(taxonomic_assessment_summary, file.path(data_outputs, "taxonomic_assessment_summary.rds"))
 
-# 8. COMPARISON WITH EXPECTED DIVERSITY ----------------------------------------
+# 9. COMPARISON WITH EXPECTED DIVERSITY ----------------------------------------
 message("\n=== Comparing with expected diversity (if reference data available) ===")
 
 # Note: This section would compare with Kenya's known species lists
@@ -309,7 +418,7 @@ comparison_notes <- data.frame(
 print(comparison_notes)
 saveRDS(comparison_notes, file.path(data_outputs, "taxonomic_coverage_comparison.rds"))
 
-# 9. VISUALIZATION -------------------------------------------------------------
+# 10. VISUALIZATION -------------------------------------------------------------
 message("\n=== Creating taxonomic visualizations ===")
 
 # Plot 1: Treemap of taxonomic groups
@@ -434,13 +543,68 @@ p6 <- ggplot(head(class_summary, 30),
 ggsave(file.path(figures_dir, "15_records_vs_species.png"),
        p6, width = 12, height = 8, dpi = 300)
 
-# 10. SUMMARY REPORT -----------------------------------------------------------
+# Plot 7: Taxonomic composition changes over time periods
+p7 <- ggplot(period_tax_top, aes(x = period, y = n_records, fill = class)) +
+  geom_col(position = "fill", alpha = 0.8) +
+  scale_fill_viridis_d(option = "turbo") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Taxonomic Composition Changes Over Time",
+    subtitle = "Proportion of records by class across 10-year periods (Top 10 classes)",
+    x = "Time Period",
+    y = "Proportion of Records",
+    fill = "Class"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right"
+  )
+
+ggsave(file.path(figures_dir, "16_taxonomic_composition_over_time.png"),
+       p7, width = 14, height = 8, dpi = 300)
+
+# Plot 8: Diversity metrics by period
+p8 <- ggplot(period_diversity, aes(x = period)) +
+  geom_line(aes(y = n_species, group = 1, color = "Species"), linewidth = 1.2) +
+  geom_line(aes(y = n_families * 10, group = 1, color = "Families (×10)"), linewidth = 1.2) +
+  geom_point(aes(y = n_species, color = "Species"), size = 3) +
+  geom_point(aes(y = n_families * 10, color = "Families (×10)"), size = 3) +
+  scale_color_manual(values = c("Species" = "blue", "Families (×10)" = "red")) +
+  scale_y_continuous(
+    name = "Number of Species",
+    sec.axis = sec_axis(~./10, name = "Number of Families")
+  ) +
+  labs(
+    title = "Taxonomic Diversity by Time Period",
+    subtitle = "Species and family richness across 10-year periods",
+    x = "Time Period",
+    color = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom",
+    axis.title.y.right = element_text(color = "red"),
+    axis.text.y.right = element_text(color = "red"),
+    axis.title.y.left = element_text(color = "blue"),
+    axis.text.y.left = element_text(color = "blue")
+  )
+
+ggsave(file.path(figures_dir, "17_diversity_by_period.png"),
+       p8, width = 12, height = 6, dpi = 300)
+
+# 11. SUMMARY REPORT -----------------------------------------------------------
 taxonomic_summary <- list(
   overview = tax_overview,
   diversity_metrics = diversity_metrics,
   rarity_summary = rarity_summary,
   top_classes = head(class_summary, 20),
-  coverage_comparison = comparison_notes
+  coverage_comparison = comparison_notes,
+  period_breaks = period_breaks,
+  period_diversity = period_diversity,
+  taxonomic_assessment_summary = taxonomic_assessment_summary,
+  taxonomic_levels_analyzed = taxonomic_levels
 )
 
 saveRDS(taxonomic_summary, file.path(data_outputs, "taxonomic_bias_summary.rds"))

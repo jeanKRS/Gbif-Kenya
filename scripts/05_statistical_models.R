@@ -357,7 +357,117 @@ p3 <- ggplot(coef_plot_data, aes(x = reorder(term, estimate), y = estimate)) +
 ggsave(file.path(figures_dir, "23_coefficient_plot.png"),
        p3, width = 10, height = 6, dpi = 300)
 
-# 11. SUMMARY REPORT -----------------------------------------------------------
+# 11. TAXONOMIC-SPECIFIC MODELS -----------------------------------------------
+message("\n=== Fitting taxonomic-specific models ===")
+
+# Create grid data with taxonomic composition
+grid_taxonomy <- kenya_data %>%
+  filter(!is.na(class)) %>%
+  mutate(
+    cell_id = paste0(
+      floor(decimalLongitude * 10), "_",
+      floor(decimalLatitude * 10)
+    )
+  ) %>%
+  group_by(grid_id = cell_id, class) %>%
+  summarise(
+    n_records_class = n(),
+    .groups = "drop"
+  )
+
+# Get top 5 classes for modeling
+top_5_classes <- kenya_data %>%
+  count(class, sort = TRUE) %>%
+  head(5) %>%
+  pull(class)
+
+message(sprintf("Fitting models for top 5 classes: %s", paste(top_5_classes, collapse = ", ")))
+
+# Join taxonomic data with environmental grid
+grid_tax_env <- grid_model %>%
+  select(grid_id, elevation_scaled, temperature_scaled, precipitation_scaled,
+         dist_to_city_scaled, dist_from_equator, dist_from_coast_km,
+         elevation, temperature, precipitation, dist_to_city_km) %>%
+  inner_join(
+    grid_taxonomy %>% filter(class %in% top_5_classes),
+    by = "grid_id"
+  )
+
+# Fit separate models for each major taxonomic group
+taxonomic_models <- list()
+taxonomic_summaries <- list()
+
+for (tax_class in top_5_classes) {
+  message(sprintf("  Fitting model for %s...", tax_class))
+
+  class_data <- grid_tax_env %>%
+    filter(class == tax_class)
+
+  if (nrow(class_data) < 30) {
+    message(sprintf("  Skipping %s - insufficient data (n = %d)", tax_class, nrow(class_data)))
+    next
+  }
+
+  tryCatch({
+    # Fit negative binomial model for this taxonomic group
+    model_class <- glm.nb(
+      n_records_class ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+        dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+      data = class_data
+    )
+
+    taxonomic_models[[tax_class]] <- model_class
+
+    # Extract summary
+    taxonomic_summaries[[tax_class]] <- broom::tidy(model_class, conf.int = TRUE) %>%
+      mutate(
+        taxonomic_class = tax_class,
+        significant = p.value < 0.05,
+        effect_direction = ifelse(estimate > 0, "Positive", "Negative")
+      )
+
+    message(sprintf("  ✓ Completed model for %s", tax_class))
+  }, error = function(e) {
+    message(sprintf("  ✗ Error in model for %s: %s", tax_class, e$message))
+  })
+}
+
+# Combine taxonomic summaries
+if (length(taxonomic_summaries) > 0) {
+  taxonomic_model_summaries <- bind_rows(taxonomic_summaries)
+  print(taxonomic_model_summaries)
+
+  saveRDS(taxonomic_models, file.path(data_outputs, "taxonomic_specific_models.rds"))
+  saveRDS(taxonomic_model_summaries, file.path(data_outputs, "taxonomic_model_summaries.rds"))
+
+  # Create coefficient comparison plot
+  coef_comparison <- taxonomic_model_summaries %>%
+    filter(term != "(Intercept)") %>%
+    mutate(term = str_remove(term, "_scaled"))
+
+  p_tax_coef <- ggplot(coef_comparison,
+                       aes(x = term, y = estimate, color = taxonomic_class)) +
+    geom_point(size = 3, position = position_dodge(width = 0.5)) +
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                  width = 0.2, position = position_dodge(width = 0.5)) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+    scale_color_viridis_d(option = "turbo") +
+    coord_flip() +
+    labs(
+      title = "Sampling Effort Predictors by Taxonomic Class",
+      subtitle = "Coefficient estimates with 95% CI from Negative Binomial GLMs",
+      x = "Predictor",
+      y = "Coefficient Estimate",
+      color = "Taxonomic Class"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+
+  ggsave(file.path(figures_dir, "24_taxonomic_coefficients_comparison.png"),
+         p_tax_coef, width = 12, height = 8, dpi = 300)
+}
+
+# 12. SUMMARY REPORT -----------------------------------------------------------
 modeling_summary <- list(
   model_type = model_type,
   overdispersion = overdispersion,
@@ -366,7 +476,9 @@ modeling_summary <- list(
   aic_comparison = aic_comparison,
   model_summaries = model_summaries,
   under_sampled_summary = under_sampled_summary,
-  gam_summary = summary_gam
+  gam_summary = summary_gam,
+  taxonomic_models_fitted = names(taxonomic_models),
+  taxonomic_model_summaries = if (exists("taxonomic_model_summaries")) taxonomic_model_summaries else NULL
 )
 
 saveRDS(modeling_summary, file.path(data_outputs, "modeling_summary.rds"))

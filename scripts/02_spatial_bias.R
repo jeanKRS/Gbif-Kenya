@@ -168,48 +168,183 @@ kenya_grid_complete <- kenya_grid_complete %>%
 # 4. OCCASSESS ANALYSES --------------------------------------------------------
 message("\n=== Running occAssess assessments ===")
 
-# Prepare data for occAssess (data.frame format required)
+# Prepare data for occAssess with taxonomic levels (data.frame format required)
 kenya_df <- kenya_data %>%
-  select(species, decimalLongitude, decimalLatitude, coordinateUncertaintyInMeters, eventDate, year) %>%
+  select(species, genus, family, order, class, phylum, kingdom,
+         decimalLongitude, decimalLatitude, coordinateUncertaintyInMeters,
+         eventDate, year) %>%
   as.data.frame()
 
-# Record number assessment
-message("Assessing record numbers...")
-record_assessment <- assessRecordNumber(
-  dat = kenya_df,
-  species = "species",
-  x = "decimalLongitude",
-  y = "decimalLatitude",
-  year = "year",
-  spatialUncertainty = "coordinateUncertaintyInMeters",
-  identifier = "species"
+# Create 10-year period breaks
+message("Creating 10-year period breaks...")
+year_range <- range(kenya_df$year, na.rm = TRUE)
+period_breaks <- seq(
+  floor(year_range[1] / 10) * 10,  # Round down to nearest decade
+  ceiling(year_range[2] / 10) * 10,  # Round up to nearest decade
+  by = 10
 )
 
-# Species number assessment
-message("Assessing species numbers...")
-species_assessment <- assessSpeciesNumber(
-  dat = kenya_df,
-  xCol = "decimalLongitude",
-  yCol = "decimalLatitude",
-  gridRes = 10000,
-  logCount = TRUE,
-  speciesCol = "species"
+message(sprintf("Period breaks: %s to %s",
+                min(period_breaks), max(period_breaks)))
+message(sprintf("Number of periods: %d", length(period_breaks) - 1))
+
+# Add period labels to data
+kenya_df <- kenya_df %>%
+  mutate(
+    period = cut(year,
+                breaks = period_breaks,
+                include.lowest = TRUE,
+                right = FALSE,
+                labels = paste0(head(period_breaks, -1), "-",
+                              tail(period_breaks, -1) - 1))
+  )
+
+# Summary of records by period
+period_summary <- kenya_df %>%
+  group_by(period) %>%
+  summarise(
+    n_records = n(),
+    n_species = n_distinct(species),
+    .groups = "drop"
+  )
+
+print(period_summary)
+saveRDS(period_summary, file.path(data_outputs, "records_by_period.rds"))
+
+# Define taxonomic levels and other grouping features for analysis
+identifiers <- list(
+  taxonomic = c("species", "genus", "family", "order", "class", "phylum", "kingdom"),
+  grouping = c("period")  # Can add more grouping features here
 )
 
-# Species coverage assessment
-message("Assessing species coverage...")
-coverage_assessment <- assessSpeciesCoverage(
-  dat = kenya_df,
-  xCol = "decimalLongitude",
-  yCol = "decimalLatitude",
-  speciesCol = "species",
-  minCoords = 5  # Minimum 5 occurrences per species
-)
+# Record number assessment - Run for each taxonomic level
+message("\n--- Assessing record numbers by taxonomic level ---")
+record_assessments <- list()
+
+for (tax_level in identifiers$taxonomic) {
+  message(sprintf("  Running assessRecordNumber for identifier: %s", tax_level))
+
+  # Skip if column has all NA values
+  if (all(is.na(kenya_df[[tax_level]]))) {
+    message(sprintf("  Skipping %s - all values are NA", tax_level))
+    next
+  }
+
+  tryCatch({
+    record_assessments[[tax_level]] <- assessRecordNumber(
+      dat = kenya_df,
+      periods = period_breaks,
+      species = "species",
+      x = "decimalLongitude",
+      y = "decimalLatitude",
+      year = "year",
+      spatialUncertainty = "coordinateUncertaintyInMeters",
+      identifier = tax_level
+    )
+    message(sprintf("  ✓ Completed assessment for %s", tax_level))
+  }, error = function(e) {
+    message(sprintf("  ✗ Error in assessment for %s: %s", tax_level, e$message))
+  })
+}
+
+# Also run assessment grouped by period
+message("  Running assessRecordNumber for identifier: period")
+tryCatch({
+  record_assessments[["period"]] <- assessRecordNumber(
+    dat = kenya_df %>% filter(!is.na(period)),
+    periods = period_breaks,
+    species = "species",
+    x = "decimalLongitude",
+    y = "decimalLatitude",
+    year = "year",
+    spatialUncertainty = "coordinateUncertaintyInMeters",
+    identifier = "period"
+  )
+  message("  ✓ Completed assessment for period")
+}, error = function(e) {
+  message(sprintf("  ✗ Error in assessment for period: %s", e$message))
+})
+
+# Species number assessment - Run for different taxonomic levels
+message("\n--- Assessing species numbers by taxonomic level ---")
+species_assessments <- list()
+
+for (tax_level in identifiers$taxonomic) {
+  message(sprintf("  Running assessSpeciesNumber for %s", tax_level))
+
+  if (all(is.na(kenya_df[[tax_level]]))) {
+    message(sprintf("  Skipping %s - all values are NA", tax_level))
+    next
+  }
+
+  tryCatch({
+    species_assessments[[tax_level]] <- assessSpeciesNumber(
+      dat = kenya_df,
+      xCol = "decimalLongitude",
+      yCol = "decimalLatitude",
+      gridRes = 10000,
+      logCount = TRUE,
+      speciesCol = tax_level
+    )
+    message(sprintf("  ✓ Completed assessment for %s", tax_level))
+  }, error = function(e) {
+    message(sprintf("  ✗ Error in assessment for %s: %s", tax_level, e$message))
+  })
+}
+
+# Species coverage assessment - Run for different taxonomic levels
+message("\n--- Assessing species coverage by taxonomic level ---")
+coverage_assessments <- list()
+
+for (tax_level in identifiers$taxonomic) {
+  message(sprintf("  Running assessSpeciesCoverage for %s", tax_level))
+
+  if (all(is.na(kenya_df[[tax_level]]))) {
+    message(sprintf("  Skipping %s - all values are NA", tax_level))
+    next
+  }
+
+  tryCatch({
+    coverage_assessments[[tax_level]] <- assessSpeciesCoverage(
+      dat = kenya_df,
+      xCol = "decimalLongitude",
+      yCol = "decimalLatitude",
+      speciesCol = tax_level,
+      minCoords = 5  # Minimum 5 occurrences per taxonomic unit
+    )
+    message(sprintf("  ✓ Completed assessment for %s", tax_level))
+  }, error = function(e) {
+    message(sprintf("  ✗ Error in assessment for %s: %s", tax_level, e$message))
+  })
+}
 
 # Save occAssess results
-saveRDS(record_assessment, file.path(data_outputs, "occassess_records.rds"))
-saveRDS(species_assessment, file.path(data_outputs, "occassess_species.rds"))
-saveRDS(coverage_assessment, file.path(data_outputs, "occassess_coverage.rds"))
+message("\n--- Saving occAssess results ---")
+saveRDS(record_assessments, file.path(data_outputs, "occassess_records_by_taxlevel.rds"))
+saveRDS(species_assessments, file.path(data_outputs, "occassess_species_by_taxlevel.rds"))
+saveRDS(coverage_assessments, file.path(data_outputs, "occassess_coverage_by_taxlevel.rds"))
+
+# Also save the main species-level assessment for backward compatibility
+if (!is.null(record_assessments[["species"]])) {
+  saveRDS(record_assessments[["species"]], file.path(data_outputs, "occassess_records.rds"))
+}
+if (!is.null(species_assessments[["species"]])) {
+  saveRDS(species_assessments[["species"]], file.path(data_outputs, "occassess_species.rds"))
+}
+if (!is.null(coverage_assessments[["species"]])) {
+  saveRDS(coverage_assessments[["species"]], file.path(data_outputs, "occassess_coverage.rds"))
+}
+
+# Create summary of assessments completed
+assessment_summary <- data.frame(
+  taxonomic_level = identifiers$taxonomic,
+  record_assessment = sapply(identifiers$taxonomic, function(x) !is.null(record_assessments[[x]])),
+  species_assessment = sapply(identifiers$taxonomic, function(x) !is.null(species_assessments[[x]])),
+  coverage_assessment = sapply(identifiers$taxonomic, function(x) !is.null(coverage_assessments[[x]]))
+)
+
+print(assessment_summary)
+saveRDS(assessment_summary, file.path(data_outputs, "assessment_summary.rds"))
 
 # 5. ENVIRONMENTAL BIAS --------------------------------------------------------
 message("\n=== Assessing environmental bias ===")
@@ -332,20 +467,85 @@ p3 <- ggplot(env_long, aes(x = value, fill = type)) +
 ggsave(file.path(figures_dir, "03_environmental_bias.png"),
        p3, width = 10, height = 10, dpi = 300)
 
-# Plot 4: Combined occAssess visualizations
-png(file.path(figures_dir, "04_occassess_assessments.png"),
-    width = 3000, height = 2000, res = 300)
-par(mfrow = c(2, 2))
-plot(record_assessment, main = "Record Number Assessment")
-plot(species_assessment, main = "Species Number Assessment")
-dev.off()
+# Plot 4: Combined occAssess visualizations for species level
+if (!is.null(record_assessments[["species"]]) && !is.null(species_assessments[["species"]])) {
+  png(file.path(figures_dir, "04_occassess_assessments_species.png"),
+      width = 3000, height = 2000, res = 300)
+  par(mfrow = c(2, 2))
+  plot(record_assessments[["species"]], main = "Record Number Assessment (Species)")
+  plot(species_assessments[["species"]], main = "Species Number Assessment")
+  dev.off()
+}
+
+# Plot 5-11: occAssess visualizations for each taxonomic level
+message("Creating visualizations for each taxonomic level...")
+for (tax_level in identifiers$taxonomic) {
+  if (!is.null(record_assessments[[tax_level]])) {
+    tryCatch({
+      png(file.path(figures_dir, sprintf("04_occassess_%s.png", tax_level)),
+          width = 2400, height = 1600, res = 300)
+      par(mfrow = c(1, 1))
+      plot(record_assessments[[tax_level]],
+           main = sprintf("Record Number Assessment (%s)", tax_level))
+      dev.off()
+      message(sprintf("  ✓ Created visualization for %s", tax_level))
+    }, error = function(e) {
+      message(sprintf("  ✗ Error creating visualization for %s: %s", tax_level, e$message))
+    })
+  }
+}
+
+# Create comparative summary plot of record counts by taxonomic level and period
+message("Creating comparative summary plots...")
+record_summary_data <- data.frame()
+
+for (tax_level in identifiers$taxonomic) {
+  if (!is.null(record_assessments[[tax_level]])) {
+    tryCatch({
+      # Extract summary data from assessment object
+      summary_df <- data.frame(
+        taxonomic_level = tax_level,
+        n_taxa = length(unique(kenya_df[[tax_level]])),
+        stringsAsFactors = FALSE
+      )
+      record_summary_data <- bind_rows(record_summary_data, summary_df)
+    }, error = function(e) {
+      message(sprintf("  Warning: Could not extract summary for %s", tax_level))
+    })
+  }
+}
+
+if (nrow(record_summary_data) > 0) {
+  p_tax_summary <- ggplot(record_summary_data,
+                          aes(x = reorder(taxonomic_level, n_taxa), y = n_taxa)) +
+    geom_col(fill = "steelblue") +
+    geom_text(aes(label = n_taxa), hjust = -0.2, size = 3.5) +
+    coord_flip() +
+    scale_y_log10(labels = scales::comma) +
+    labs(title = "Number of Taxa by Taxonomic Level",
+         x = "Taxonomic Level",
+         y = "Number of Taxa (log scale)") +
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank())
+
+  ggsave(file.path(figures_dir, "05_taxonomic_summary.png"),
+         p_tax_summary, width = 10, height = 6, dpi = 300)
+}
 
 # 7. SUMMARY REPORT ------------------------------------------------------------
 spatial_summary <- list(
   effort_summary = effort_summary,
   moran_results = moran_results,
   env_bias_summary = env_bias_summary,
-  coverage_stats = summary(coverage_assessment)
+  period_summary = period_summary,
+  period_breaks = period_breaks,
+  assessment_summary = assessment_summary,
+  taxonomic_levels_analyzed = identifiers$taxonomic,
+  coverage_stats = if (!is.null(coverage_assessments[["species"]])) {
+    summary(coverage_assessments[["species"]])
+  } else {
+    "No species-level coverage assessment available"
+  }
 )
 
 saveRDS(spatial_summary, file.path(data_outputs, "spatial_bias_summary.rds"))

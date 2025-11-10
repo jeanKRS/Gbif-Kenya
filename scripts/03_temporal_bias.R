@@ -115,32 +115,107 @@ saveRDS(gap_summary, file.path(data_outputs, "temporal_gaps.rds"))
 # 4. OCCASSESS TEMPORAL ASSESSMENTS --------------------------------------------
 message("\n=== Running occAssess temporal assessments ===")
 
-# Prepare data for occAssess
+# Prepare data for occAssess with taxonomic levels
 kenya_df <- kenya_data %>%
   filter(!is.na(eventDate)) %>%
-  select(species, decimalLongitude, decimalLatitude, eventDate, year) %>%
+  select(species, genus, family, order, class, phylum, kingdom,
+         decimalLongitude, decimalLatitude, eventDate, year) %>%
   as.data.frame()
 
-# Record time assessment
-message("Assessing record temporal distribution...")
-record_time <- assessRecordTime(
-  dat = kenya_df,
-  dateCol = "eventDate",
-  intervals = "year"
+# Create 10-year period breaks (consistent with spatial analysis)
+message("Creating 10-year period breaks...")
+year_range <- range(kenya_df$year, na.rm = TRUE)
+period_breaks <- seq(
+  floor(year_range[1] / 10) * 10,
+  ceiling(year_range[2] / 10) * 10,
+  by = 10
 )
 
-# Species temporal coverage
-message("Assessing species temporal coverage...")
-species_time <- assessSpeciesTime(
-  dat = kenya_df,
-  speciesCol = "species",
-  dateCol = "eventDate",
-  threshold = 5  # Minimum 5 years between first and last record
-)
+# Add period labels to data
+kenya_df <- kenya_df %>%
+  mutate(
+    period = cut(year,
+                breaks = period_breaks,
+                include.lowest = TRUE,
+                right = FALSE,
+                labels = paste0(head(period_breaks, -1), "-",
+                              tail(period_breaks, -1) - 1))
+  )
+
+# Define taxonomic levels for analysis
+taxonomic_levels <- c("species", "genus", "family", "order", "class", "phylum", "kingdom")
+
+# Record time assessment - Run for each taxonomic level
+message("\n--- Assessing record temporal distribution by taxonomic level ---")
+record_time_assessments <- list()
+
+for (tax_level in taxonomic_levels) {
+  message(sprintf("  Running assessRecordTime for %s", tax_level))
+
+  if (all(is.na(kenya_df[[tax_level]]))) {
+    message(sprintf("  Skipping %s - all values are NA", tax_level))
+    next
+  }
+
+  tryCatch({
+    record_time_assessments[[tax_level]] <- assessRecordTime(
+      dat = kenya_df,
+      dateCol = "eventDate",
+      intervals = "year"
+    )
+    message(sprintf("  ✓ Completed time assessment for %s", tax_level))
+  }, error = function(e) {
+    message(sprintf("  ✗ Error in time assessment for %s: %s", tax_level, e$message))
+  })
+}
+
+# Species temporal coverage - Run for different taxonomic levels
+message("\n--- Assessing temporal coverage by taxonomic level ---")
+species_time_assessments <- list()
+
+for (tax_level in taxonomic_levels) {
+  message(sprintf("  Running assessSpeciesTime for %s", tax_level))
+
+  if (all(is.na(kenya_df[[tax_level]]))) {
+    message(sprintf("  Skipping %s - all values are NA", tax_level))
+    next
+  }
+
+  tryCatch({
+    species_time_assessments[[tax_level]] <- assessSpeciesTime(
+      dat = kenya_df,
+      speciesCol = tax_level,
+      dateCol = "eventDate",
+      threshold = 5  # Minimum 5 years between first and last record
+    )
+    message(sprintf("  ✓ Completed temporal coverage for %s", tax_level))
+  }, error = function(e) {
+    message(sprintf("  ✗ Error in temporal coverage for %s: %s", tax_level, e$message))
+  })
+}
 
 # Save occAssess results
-saveRDS(record_time, file.path(data_outputs, "occassess_record_time.rds"))
-saveRDS(species_time, file.path(data_outputs, "occassess_species_time.rds"))
+message("\n--- Saving occAssess temporal results ---")
+saveRDS(record_time_assessments, file.path(data_outputs, "occassess_record_time_by_taxlevel.rds"))
+saveRDS(species_time_assessments, file.path(data_outputs, "occassess_species_time_by_taxlevel.rds"))
+
+# Also save species-level assessment for backward compatibility
+if (!is.null(record_time_assessments[["species"]])) {
+  saveRDS(record_time_assessments[["species"]], file.path(data_outputs, "occassess_record_time.rds"))
+}
+if (!is.null(species_time_assessments[["species"]])) {
+  saveRDS(species_time_assessments[["species"]], file.path(data_outputs, "occassess_species_time.rds"))
+}
+
+# Create summary of temporal assessments
+temporal_assessment_summary <- data.frame(
+  taxonomic_level = taxonomic_levels,
+  record_time_assessment = sapply(taxonomic_levels, function(x) !is.null(record_time_assessments[[x]])),
+  species_time_assessment = sapply(taxonomic_levels, function(x) !is.null(species_time_assessments[[x]]))
+)
+
+print(temporal_assessment_summary)
+saveRDS(temporal_assessment_summary, file.path(data_outputs, "temporal_assessment_summary.rds"))
 
 # 5. TEMPORAL BIAS BY TAXONOMIC GROUP ------------------------------------------
 message("\n=== Analyzing temporal bias by taxonomic group ===")
@@ -343,12 +418,32 @@ ggsave(file.path(figures_dir, "09_species_temporal_span.png"),
        p5, width = 10, height = 6, dpi = 300)
 
 # 9. SUMMARY REPORT ------------------------------------------------------------
+
+# Create period summary
+period_summary <- kenya_df %>%
+  filter(!is.na(period)) %>%
+  group_by(period) %>%
+  summarise(
+    n_records = n(),
+    n_species = n_distinct(species),
+    n_genera = n_distinct(genus),
+    n_families = n_distinct(family),
+    .groups = "drop"
+  )
+
+print(period_summary)
+saveRDS(period_summary, file.path(data_outputs, "temporal_period_summary.rds"))
+
 temporal_bias_summary <- list(
   temporal_stats = temporal_stats,
   trend_tests = trend_tests,
   gap_summary = gap_summary,
   seasonal_summary = seasonal_summary,
-  species_temporal_summary = species_temporal_summary
+  species_temporal_summary = species_temporal_summary,
+  period_breaks = period_breaks,
+  period_summary = period_summary,
+  temporal_assessment_summary = temporal_assessment_summary,
+  taxonomic_levels_analyzed = taxonomic_levels
 )
 
 saveRDS(temporal_bias_summary, file.path(data_outputs, "temporal_bias_summary.rds"))
