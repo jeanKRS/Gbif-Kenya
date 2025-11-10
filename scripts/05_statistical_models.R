@@ -407,7 +407,7 @@ if (!inherits(primary_model, "gam")) {
   # Explicitly use the cleaned dataset for all model updates
   models_count <- list(
     full = primary_model,
-    geographic = update(primary_model, . ~ dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+    geographic = update(primary_model, . ~ dist_to_city_km + dist_from_equator + dist_from_coast_km,
                        data = grid_model_clean),
     environmental = update(primary_model, . ~ elevation_scaled + temperature_scaled + precipitation_scaled,
                           data = grid_model_clean),
@@ -596,7 +596,7 @@ message("\n=== Creating modeling visualizations ===")
 
 # Rejoin with spatial data for mapping
 grid_spatial_pred <- spatial_grid %>%
-  left_join(grid_model %>% select(grid_id, predicted_count, residual_std,
+  left_join(grid_model %>% dplyr::select(grid_id, predicted_count, residual_std,
                                   under_sampled, over_sampled),
             by = "grid_id")
 
