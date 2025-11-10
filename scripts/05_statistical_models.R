@@ -693,7 +693,8 @@ if (taxonomic_models_exist) {
     summarise(
       n_records_class = n(),
       .groups = "drop"
-    )
+    ) |>
+    mutate(grid_id = grid_id |> as.numeric())
 
   # Get top 5 classes for modeling
   top_5_classes <- kenya_data %>%
@@ -705,7 +706,7 @@ if (taxonomic_models_exist) {
 
   # Join taxonomic data with environmental grid
   grid_tax_env <- grid_model %>%
-    select(grid_id, elevation_scaled, temperature_scaled, precipitation_scaled,
+    dplyr::select(grid_id, elevation_scaled, temperature_scaled, precipitation_scaled,
            dist_to_city_scaled, dist_from_equator, dist_from_coast_km,
            elevation, temperature, precipitation, dist_to_city_km) %>%
     # Ensure clean data for taxonomic models

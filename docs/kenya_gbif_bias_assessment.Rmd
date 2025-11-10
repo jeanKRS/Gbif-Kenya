@@ -266,7 +266,7 @@ env_bias_table <- env_bias %>%
     p_value = format.pval(p_value, eps = 0.001),
     significant = ifelse(significant, "Yes", "No")
   ) %>%
-  select(Variable = variable, `D Statistic` = D_statistic,
+  dplyr::select(Variable = variable, `D Statistic` = D_statistic,
          `P-value` = p_value, Significant = significant)
 
 kable(env_bias_table,
@@ -291,7 +291,7 @@ trend_table <- trend_tests %>%
     tau = round(tau, 4),
     p_value = format.pval(p_value, eps = 0.001)
   ) %>%
-  select(Variable = variable, `Kendall's τ` = tau, `P-value` = p_value, Trend = trend)
+  dplyr::select(Variable = variable, `Kendall's τ` = tau, `P-value` = p_value, Trend = trend)
 
 kable(trend_table, caption = "Mann-Kendall trend tests for temporal patterns",
       booktabs = TRUE) %>%
@@ -341,7 +341,7 @@ Taxonomic coverage was highly uneven across classes. The Gini coefficient for re
 
 ```{r top-classes-table}
 top_10_classes <- head(class_summary, 10) %>%
-  select(Kingdom = kingdom, Phylum = phylum, Class = class,
+  dplyr::select(Kingdom = kingdom, Phylum = phylum, Class = class,
          Records = n_records, Species = n_species, Families = n_families) %>%
   mutate(
     Records = format(Records, big.mark = ","),
@@ -379,7 +379,7 @@ rarity_table <- rarity_summary %>%
     prop_species = paste0(round(prop_species * 100, 1), "%"),
     prop_records = paste0(round(prop_records * 100, 1), "%")
   ) %>%
-  select(`Rarity Class` = rarity_class, `Species` = n_species,
+  dplyr::select(`Rarity Class` = rarity_class, `Species` = n_species,
          `Total Records` = total_records, `% Species` = prop_species,
          `% Records` = prop_records)
 
@@ -404,7 +404,7 @@ coef_table <- count_model_summary %>%
     term = str_replace_all(term, "_", " "),
     term = str_to_title(term)
   ) %>%
-  select(Predictor = term, Estimate = estimate, `Std. Error` = std.error,
+  dplyr::select(Predictor = term, Estimate = estimate, `Std. Error` = std.error,
          `Z value` = statistic, `P-value` = p.value) %>%
   mutate(
     Estimate = round(Estimate, 4),
