@@ -159,28 +159,27 @@ if (file.exists(file.path(data_outputs, "spatial_autocorrelation.rds"))) {
 # 3. ACCESSIBILITY BIAS ASSESSMENT ---------------------------------------------
 message("\n=== Assessing accessibility bias ===")
 
+# Extract environmental values for occurrences
+kenya_coords <- kenya_data %>%
+  select(decimalLongitude, decimalLatitude) %>%
+  as.matrix()
+
 # Download environmental data for Kenya
 message("Downloading elevation data...")
 elevation_data <- elevation_30s(country = "KEN", path = tempdir())
 elevation <- if (is.character(elevation_data)) terra::rast(elevation_data) else elevation_data
-elevation = terra::extract(elevation, kenya_coords)[, 1]
 
 # Get climate data
 message("Downloading climate data...")
 climate_data <- worldclim_country(country = "KEN", var = "bio", path = tempdir())
 climate <- if (is.character(climate_data)) terra::rast(climate_data) else climate_data
 
-# Extract environmental values for occurrences
-kenya_coords <- kenya_data %>%
-  select(decimalLongitude, decimalLatitude) %>%
-  as.matrix()
-
-# Extract elevation
+# Extract environmental values into data frame
 kenya_data_env <- kenya_data %>%
   mutate(
-    elevation = elevation,
-    bio1_temp = terra::extract(climate[[1]], kenya_coords)[, 1],  # Annual mean temp
-    bio12_precip = terra::extract(climate[[12]], kenya_coords)[, 1]  # Annual precip
+    elevation = terra::extract(elevation, kenya_coords)[, 2],  # Column 2 contains values
+    bio1_temp = terra::extract(climate[[1]], kenya_coords)[, 2],  # Annual mean temp
+    bio12_precip = terra::extract(climate[[12]], kenya_coords)[, 2]  # Annual precip
   )
 
 # Calculate distance to nearest record for each grid cell
@@ -411,9 +410,9 @@ background_points <- st_sample(kenya_boundary, size = 10000) %>%
 # Extract environmental values for background
 bg_env <- data.frame(
   type = "available",
-  elevation = terra::extract(elevation, background_points)[, 1],
-  temperature = terra::extract(climate[[1]], background_points)[, 1],
-  precipitation = terra::extract(climate[[12]], background_points)[, 1]
+  elevation = terra::extract(elevation, background_points)[, 2],
+  temperature = terra::extract(climate[[1]], background_points)[, 2],
+  precipitation = terra::extract(climate[[12]], background_points)[, 2]
 )
 
 # Environmental values for occurrences
