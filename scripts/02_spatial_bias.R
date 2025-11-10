@@ -126,11 +126,11 @@ message("\n=== Assessing accessibility bias ===")
 
 # Download environmental data for Kenya
 message("Downloading elevation data...")
-elevation <- elevation_30s(country = "KEN", path = tempdir())
+elevation <- terra::rast(elevation_30s(country = "KEN", path = tempdir()))
 
 # Get climate data
 message("Downloading climate data...")
-climate <- worldclim_country(country = "KEN", var = "bio", path = tempdir())
+climate <- terra::rast(worldclim_country(country = "KEN", var = "bio", path = tempdir()))
 
 # Extract environmental values for occurrences
 kenya_coords <- kenya_data %>%

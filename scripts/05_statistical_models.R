@@ -36,10 +36,10 @@ message("\n=== Preparing environmental covariates ===")
 
 # Download environmental data
 message("Downloading elevation data...")
-elevation <- elevation_30s(country = "KEN", path = tempdir())
+elevation <- terra::rast(elevation_30s(country = "KEN", path = tempdir()))
 
 message("Downloading climate data...")
-climate <- worldclim_country(country = "KEN", var = "bio", path = tempdir())
+climate <- terra::rast(worldclim_country(country = "KEN", var = "bio", path = tempdir()))
 
 # Extract bio1 (temperature) and bio12 (precipitation)
 temperature <- climate[[1]]
