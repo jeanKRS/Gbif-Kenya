@@ -12,7 +12,7 @@ suppressPackageStartupMessages({
   library(occAssess)
   library(vegan)
   library(iNEXT)
-  library(treemap)
+  library(treemapify)
   library(viridis)
   library(ggalluvial)
   library(scales)
