@@ -139,13 +139,102 @@ if (models_exist) {
   # Model 2: Negative binomial GLM (if overdispersed)
   if (overdispersion > 2) {
     message("  Data is overdispersed. Fitting Negative Binomial GLM...")
-    glm_nb <- glm.nb(
-      n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
-        dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
-      data = grid_model
-    )
-    primary_model <- glm_nb
-    model_type <- "Negative Binomial"
+
+    # Add data diagnostics
+    message(sprintf("    Data summary: mean = %.2f, variance = %.2f, zeros = %d (%.1f%%)",
+                    mean(grid_model$n_records),
+                    var(grid_model$n_records),
+                    sum(grid_model$n_records == 0),
+                    100 * sum(grid_model$n_records == 0) / nrow(grid_model)))
+
+    # Try fitting with error handling and fallback options
+    glm_nb <- NULL
+    fit_successful <- FALSE
+
+    # Attempt 1: Full model
+    tryCatch({
+      glm_nb <- glm.nb(
+        n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+          dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+        data = grid_model,
+        control = glm.control(maxit = 100)
+      )
+      fit_successful <- TRUE
+      message("    ✓ Full model converged")
+    }, error = function(e) {
+      message(sprintf("    First attempt failed: %s", e$message))
+    })
+
+    # Attempt 2: Simpler model (main environmental variables only)
+    if (!fit_successful) {
+      message("    Trying with simpler model (environmental variables only)...")
+      tryCatch({
+        glm_nb <- glm.nb(
+          n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled,
+          data = grid_model,
+          control = glm.control(maxit = 100)
+        )
+        fit_successful <- TRUE
+        message("    ✓ Simpler model converged")
+      }, error = function(e) {
+        message(sprintf("    Simpler model also failed: %s", e$message))
+      })
+    }
+
+    # Attempt 3: Use starting values from Poisson model
+    if (!fit_successful) {
+      message("    Trying with starting values from Poisson model...")
+      tryCatch({
+        # Get starting values from Poisson model
+        poisson_coefs <- coef(glm_poisson)
+
+        glm_nb <- glm.nb(
+          n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+            dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+          data = grid_model,
+          init.theta = 1,
+          control = glm.control(maxit = 100)
+        )
+        fit_successful <- TRUE
+        message("    ✓ Model with starting values converged")
+      }, error = function(e) {
+        message(sprintf("    Model with starting values failed: %s", e$message))
+      })
+    }
+
+    # Attempt 4: GAM with negative binomial family as final fallback
+    if (!fit_successful) {
+      message("    Trying GAM with negative binomial family as fallback...")
+      tryCatch({
+        require(mgcv)
+        glm_nb <- gam(
+          n_records ~ s(elevation_scaled, k = 4) + s(temperature_scaled, k = 4) +
+            s(precipitation_scaled, k = 4) + s(dist_to_city_scaled, k = 4),
+          data = grid_model,
+          family = nb(),
+          method = "REML"
+        )
+        fit_successful <- TRUE
+        message("    ✓ GAM model converged")
+      }, error = function(e) {
+        message(sprintf("    GAM also failed: %s", e$message))
+      })
+    }
+
+    # If all attempts failed, fall back to Poisson
+    if (!fit_successful || is.null(glm_nb)) {
+      message("    ⚠ All Negative Binomial attempts failed. Using Poisson model.")
+      message("    Note: Results may be unreliable due to extreme overdispersion.")
+      primary_model <- glm_poisson
+      model_type <- "Poisson (fallback)"
+    } else {
+      primary_model <- glm_nb
+      if (inherits(glm_nb, "gam")) {
+        model_type <- "Negative Binomial GAM"
+      } else {
+        model_type <- "Negative Binomial"
+      }
+    }
   } else {
     primary_model <- glm_poisson
     model_type <- "Poisson"
@@ -216,29 +305,35 @@ saveRDS(model_summaries, file.path(data_outputs, "model_summaries.rds"))
 # 6. MODEL SELECTION -----------------------------------------------------------
 message("\n=== Performing model selection ===")
 
-# Fit models with different covariate combinations
-models_count <- list(
-  full = primary_model,
-  geographic = update(primary_model, . ~ dist_to_city_scaled + dist_from_equator + dist_from_coast_km),
-  environmental = update(primary_model, . ~ elevation_scaled + temperature_scaled + precipitation_scaled),
-  elevation_only = update(primary_model, . ~ elevation_scaled),
-  accessibility = update(primary_model, . ~ dist_to_city_scaled)
-)
-
-# AIC comparison
-aic_comparison <- data.frame(
-  model = names(models_count),
-  AIC = sapply(models_count, AIC),
-  BIC = sapply(models_count, BIC)
-) %>%
-  arrange(AIC) %>%
-  mutate(
-    delta_AIC = AIC - min(AIC),
-    weight = exp(-0.5 * delta_AIC) / sum(exp(-0.5 * delta_AIC))
+# Only perform model selection for GLM models (not GAM)
+if (!inherits(primary_model, "gam")) {
+  # Fit models with different covariate combinations
+  models_count <- list(
+    full = primary_model,
+    geographic = update(primary_model, . ~ dist_to_city_scaled + dist_from_equator + dist_from_coast_km),
+    environmental = update(primary_model, . ~ elevation_scaled + temperature_scaled + precipitation_scaled),
+    elevation_only = update(primary_model, . ~ elevation_scaled),
+    accessibility = update(primary_model, . ~ dist_to_city_scaled)
   )
 
-print(aic_comparison)
-saveRDS(aic_comparison, file.path(data_outputs, "model_selection_aic.rds"))
+  # AIC comparison
+  aic_comparison <- data.frame(
+    model = names(models_count),
+    AIC = sapply(models_count, AIC),
+    BIC = sapply(models_count, BIC)
+  ) %>%
+    arrange(AIC) %>%
+    mutate(
+      delta_AIC = AIC - min(AIC),
+      weight = exp(-0.5 * delta_AIC) / sum(exp(-0.5 * delta_AIC))
+    )
+
+  print(aic_comparison)
+  saveRDS(aic_comparison, file.path(data_outputs, "model_selection_aic.rds"))
+} else {
+  message("  ℹ Skipping model selection (primary model is GAM)")
+  message("  Using AIC from primary model: ", AIC(primary_model))
+}
 
 # 7. GENERALIZED ADDITIVE MODELS -----------------------------------------------
 message("\n=== Fitting GAMs for non-linear relationships ===")
@@ -252,50 +347,113 @@ if (file.exists(file.path(data_outputs, "gam_model.rds"))) {
 } else {
   message("  → Fitting GAM model...")
 
-  # GAM for record count
-  gam_count <- gam(
-    n_records ~ s(elevation, k = 5) + s(temperature, k = 5) +
-      s(precipitation, k = 5) + s(dist_to_city_km, k = 5) +
-      s(lon, lat, k = 20),
-    data = grid_model %>% filter(n_records > 0),
-    family = nb(),
-    method = "REML"
-  )
+  # Try fitting GAM with error handling
+  gam_fit_successful <- FALSE
 
-  # GAM summary
-  summary_gam <- summary(gam_count)
-  print(summary_gam)
+  # Attempt 1: Full GAM with negative binomial
+  tryCatch({
+    gam_count <- gam(
+      n_records ~ s(elevation, k = 5) + s(temperature, k = 5) +
+        s(precipitation, k = 5) + s(dist_to_city_km, k = 5) +
+        s(lon, lat, k = 20),
+      data = grid_model %>% filter(n_records > 0),
+      family = nb(),
+      method = "REML"
+    )
+    gam_fit_successful <- TRUE
+    message("    ✓ Negative binomial GAM converged")
+  }, error = function(e) {
+    message(sprintf("    Negative binomial GAM failed: %s", e$message))
+  })
 
-  # Save GAM
-  saveRDS(gam_count, file.path(data_outputs, "gam_model.rds"))
-  message("  ✓ GAM model fitted")
+  # Attempt 2: Try with Poisson family
+  if (!gam_fit_successful) {
+    message("    Trying GAM with Poisson family...")
+    tryCatch({
+      gam_count <- gam(
+        n_records ~ s(elevation, k = 5) + s(temperature, k = 5) +
+          s(precipitation, k = 5) + s(dist_to_city_km, k = 5) +
+          s(lon, lat, k = 20),
+        data = grid_model %>% filter(n_records > 0),
+        family = poisson(link = "log"),
+        method = "REML"
+      )
+      gam_fit_successful <- TRUE
+      message("    ✓ Poisson GAM converged (note: may be overdispersed)")
+    }, error = function(e) {
+      message(sprintf("    Poisson GAM failed: %s", e$message))
+    })
+  }
+
+  # Attempt 3: Simpler GAM with fewer knots
+  if (!gam_fit_successful) {
+    message("    Trying simpler GAM with fewer knots...")
+    tryCatch({
+      gam_count <- gam(
+        n_records ~ s(elevation, k = 3) + s(temperature, k = 3) +
+          s(precipitation, k = 3) + s(dist_to_city_km, k = 3),
+        data = grid_model %>% filter(n_records > 0),
+        family = nb(),
+        method = "REML"
+      )
+      gam_fit_successful <- TRUE
+      message("    ✓ Simpler GAM converged")
+    }, error = function(e) {
+      message(sprintf("    Simpler GAM failed: %s", e$message))
+    })
+  }
+
+  if (gam_fit_successful) {
+    # GAM summary
+    summary_gam <- summary(gam_count)
+    print(summary_gam)
+
+    # Save GAM
+    saveRDS(gam_count, file.path(data_outputs, "gam_model.rds"))
+    message("  ✓ GAM model fitted")
+  } else {
+    message("  ⚠ All GAM fitting attempts failed. Skipping GAM analysis.")
+    gam_count <- NULL
+  }
 }
 
-# GAM diagnostic plots
-png(file.path(figures_dir, "18_gam_diagnostics.png"),
-    width = 3000, height = 2000, res = 300)
-par(mfrow = c(2, 3))
-gam.check(gam_count)
-dev.off()
+# GAM diagnostic plots (only if GAM was successfully fitted)
+if (!is.null(gam_count)) {
+  png(file.path(figures_dir, "18_gam_diagnostics.png"),
+      width = 3000, height = 2000, res = 300)
+  par(mfrow = c(2, 3))
+  gam.check(gam_count)
+  dev.off()
+} else {
+  message("  ℹ Skipping GAM diagnostics (no GAM model available)")
+}
 
 # 8. EFFECT PLOTS --------------------------------------------------------------
 message("\n=== Creating effect plots ===")
 
-# Effect plots for GLM
-effects_count <- allEffects(primary_model)
+# Effect plots for GLM (only if primary model is not a GAM)
+if (!inherits(primary_model, "gam")) {
+  effects_count <- allEffects(primary_model)
 
-png(file.path(figures_dir, "19_glm_effects.png"),
-    width = 3600, height = 2400, res = 300)
-plot(effects_count, main = paste("Effects on Sampling Effort -", model_type, "GLM"))
-dev.off()
+  png(file.path(figures_dir, "19_glm_effects.png"),
+      width = 3600, height = 2400, res = 300)
+  plot(effects_count, main = paste("Effects on Sampling Effort -", model_type, "GLM"))
+  dev.off()
+} else {
+  message("  ℹ Skipping allEffects (primary model is GAM - see GAM smooth plots instead)")
+}
 
-# GAM smooth plots
-png(file.path(figures_dir, "20_gam_smooths.png"),
-    width = 3600, height = 2400, res = 300)
-par(mfrow = c(2, 3))
-plot(gam_count, shade = TRUE, pages = 1, scale = 0,
-     main = "GAM Smooth Effects on Sampling Effort")
-dev.off()
+# GAM smooth plots (only if GAM was successfully fitted)
+if (!is.null(gam_count)) {
+  png(file.path(figures_dir, "20_gam_smooths.png"),
+      width = 3600, height = 2400, res = 300)
+  par(mfrow = c(2, 3))
+  plot(gam_count, shade = TRUE, pages = 1, scale = 0,
+       main = "GAM Smooth Effects on Sampling Effort")
+  dev.off()
+} else {
+  message("  ℹ Skipping GAM smooth plots (no GAM model available)")
+}
 
 # 9. PREDICTIONS AND SPATIAL PATTERNS ------------------------------------------
 message("\n=== Generating predictions ===")
@@ -456,14 +614,58 @@ if (taxonomic_models_exist) {
       next
     }
 
+    # Try fitting with multiple fallback strategies
+    model_class <- NULL
+    fit_successful <- FALSE
+
+    # Attempt 1: Full negative binomial model
     tryCatch({
-      # Fit negative binomial model for this taxonomic group
       model_class <- glm.nb(
         n_records_class ~ elevation_scaled + temperature_scaled + precipitation_scaled +
           dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
-        data = class_data
+        data = class_data,
+        control = glm.control(maxit = 100)
       )
+      fit_successful <- TRUE
+    }, error = function(e) {
+      message(sprintf("      Full model failed: %s", e$message))
+    })
 
+    # Attempt 2: Simpler model
+    if (!fit_successful) {
+      message(sprintf("      Trying simpler model for %s...", tax_class))
+      tryCatch({
+        model_class <- glm.nb(
+          n_records_class ~ elevation_scaled + temperature_scaled + precipitation_scaled,
+          data = class_data,
+          control = glm.control(maxit = 100)
+        )
+        fit_successful <- TRUE
+      }, error = function(e) {
+        message(sprintf("      Simpler model failed: %s", e$message))
+      })
+    }
+
+    # Attempt 3: Poisson model as fallback
+    if (!fit_successful) {
+      message(sprintf("      Trying Poisson model for %s...", tax_class))
+      tryCatch({
+        model_class <- glm(
+          n_records_class ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+            dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+          data = class_data,
+          family = poisson(link = "log"),
+          control = glm.control(maxit = 100)
+        )
+        fit_successful <- TRUE
+        message(sprintf("      Note: Using Poisson model for %s (NB failed to converge)", tax_class))
+      }, error = function(e) {
+        message(sprintf("      Poisson model failed: %s", e$message))
+      })
+    }
+
+    # If successful, store the model and extract summary
+    if (fit_successful && !is.null(model_class)) {
       taxonomic_models[[tax_class]] <- model_class
 
       # Extract summary
@@ -475,9 +677,9 @@ if (taxonomic_models_exist) {
         )
 
       message(sprintf("    ✓ Completed model for %s", tax_class))
-    }, error = function(e) {
-      message(sprintf("    ✗ Error in model for %s: %s", tax_class, e$message))
-    })
+    } else {
+      message(sprintf("    ✗ All modeling attempts failed for %s", tax_class))
+    }
   }
 
   # Combine taxonomic summaries
