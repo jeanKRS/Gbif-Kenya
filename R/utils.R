@@ -79,9 +79,22 @@ calculate_grid_metrics <- function(data, grid_size = 0.1, boundary = NULL) {
 #' @return data.frame with environmental values
 extract_env_data <- function(coords, country = "KEN") {
 
-  # Download data
-  elev <- geodata::elevation_30s(country = country, path = tempdir())
-  clim <- geodata::worldclim_country(country = country, var = "bio", path = tempdir())
+  # Download data (geodata functions return SpatRaster objects directly)
+  elev_path <- geodata::elevation_30s(country = country, path = tempdir())
+  clim_path <- geodata::worldclim_country(country = country, var = "bio", path = tempdir())
+
+  # Load rasters properly - check if result is path or SpatRaster
+  if (is.character(elev_path)) {
+    elev <- terra::rast(elev_path)
+  } else {
+    elev <- elev_path
+  }
+
+  if (is.character(clim_path)) {
+    clim <- terra::rast(clim_path)
+  } else {
+    clim <- clim_path
+  }
 
   # Extract values
   env_data <- data.frame(
