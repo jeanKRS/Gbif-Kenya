@@ -105,12 +105,11 @@ flags <- clean_coordinates(
   lat = "decimalLatitude",
   species = "species",
   countries = "countryCode",
-  tests = c("capitals", "centroids", "equal", "gbif", "institutions",
+  tests = c("capitals", "centroids", "equal", "gbif",
             "outliers", "zeros", "seas", "urban"),
   seas_ref = buffland,
   capitals_ref = NULL,
   centroids_ref = NULL,
-  institutions_ref = NULL,
   outliers_method = "quantile",
   outliers_mtp = 5,
   outliers_td = 1000,
@@ -119,7 +118,6 @@ flags <- clean_coordinates(
   zeros_rad = 0.5,
   capitals_rad = 10000,
   centroids_rad = 5000,
-  institutions_rad = 2000,
   verbose = TRUE,
   value = "flagged"
 )
