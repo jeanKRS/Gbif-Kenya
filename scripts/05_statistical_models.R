@@ -97,7 +97,23 @@ grid_model <- st_drop_geometry(grid_env) %>%
     # Create presence/absence for logistic model
     presence = as.numeric(n_records > 0)
   ) %>%
-  filter(!is.na(elevation), !is.na(temperature), !is.na(precipitation))
+  # Filter out rows with NA values in any predictor
+  filter(!is.na(elevation), !is.na(temperature), !is.na(precipitation),
+         !is.na(dist_to_city_km), !is.na(dist_from_equator), !is.na(dist_from_coast_km)) %>%
+  # Filter out rows with NA/NaN/Inf in scaled variables
+  filter(!is.na(elevation_scaled), !is.na(temperature_scaled), !is.na(precipitation_scaled),
+         !is.na(dist_to_city_scaled),
+         is.finite(elevation_scaled), is.finite(temperature_scaled),
+         is.finite(precipitation_scaled), is.finite(dist_to_city_scaled),
+         is.finite(dist_from_equator), is.finite(dist_from_coast_km))
+
+# Data validation report
+message(sprintf("  Data after cleaning: %d grid cells retained", nrow(grid_model)))
+message(sprintf("  Summary of predictor ranges:"))
+message(sprintf("    Elevation: %.1f to %.1f m", min(grid_model$elevation), max(grid_model$elevation)))
+message(sprintf("    Temperature: %.1f to %.1f °C", min(grid_model$temperature), max(grid_model$temperature)))
+message(sprintf("    Precipitation: %.1f to %.1f mm", min(grid_model$precipitation), max(grid_model$precipitation)))
+message(sprintf("    Distance to city: %.1f to %.1f km", min(grid_model$dist_to_city_km), max(grid_model$dist_to_city_km)))
 
 # 3. GENERALIZED LINEAR MODELS -------------------------------------------------
 message("\n=== Fitting GLMs for sampling effort ===")
@@ -330,6 +346,63 @@ message("\n=== Performing model selection ===")
 
 # Only perform model selection for GLM models (not GAM)
 if (!inherits(primary_model, "gam")) {
+  # Pre-flight check: Verify data integrity before model selection
+  message("  Checking data integrity before model selection...")
+
+  predictor_cols <- c("elevation_scaled", "temperature_scaled", "precipitation_scaled",
+                     "dist_to_city_scaled", "dist_from_equator", "dist_from_coast_km")
+
+  # Check for any NA/NaN/Inf values
+  data_check <- sapply(predictor_cols, function(col) {
+    values <- grid_model[[col]]
+    list(
+      has_na = any(is.na(values)),
+      has_inf = any(is.infinite(values)),
+      n_valid = sum(is.finite(values) & !is.na(values))
+    )
+  })
+
+  # Report any issues
+  if (any(sapply(data_check["has_na", ], identity))) {
+    warning("NA values detected in predictors")
+    print(data_check)
+  }
+
+  if (any(sapply(data_check["has_inf", ], identity))) {
+    warning("Inf values detected in predictors")
+    print(data_check)
+  }
+
+  # Create clean dataset for model selection
+  grid_model_clean <- grid_model %>%
+    filter(if_all(all_of(predictor_cols), ~ is.finite(.) & !is.na(.)))
+
+  message(sprintf("  Using %d of %d observations for model selection (%.1f%%)",
+                  nrow(grid_model_clean), nrow(grid_model),
+                  100 * nrow(grid_model_clean) / nrow(grid_model)))
+
+  # Refit primary model on clean data if needed
+  if (nrow(grid_model_clean) < nrow(grid_model)) {
+    message("  Refitting primary model on cleaned dataset...")
+
+    if (inherits(primary_model, "negbin")) {
+      primary_model <- glm.nb(
+        n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+          dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+        data = grid_model_clean,
+        control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
+      )
+    } else {
+      primary_model <- glm(
+        n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+          dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+        data = grid_model_clean,
+        family = poisson(link = "log"),
+        control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
+      )
+    }
+  }
+
   # Fit models with different covariate combinations
   models_count <- list(
     full = primary_model,
@@ -617,10 +690,18 @@ if (taxonomic_models_exist) {
     select(grid_id, elevation_scaled, temperature_scaled, precipitation_scaled,
            dist_to_city_scaled, dist_from_equator, dist_from_coast_km,
            elevation, temperature, precipitation, dist_to_city_km) %>%
+    # Ensure clean data for taxonomic models
+    filter(is.finite(elevation_scaled), is.finite(temperature_scaled),
+           is.finite(precipitation_scaled), is.finite(dist_to_city_scaled),
+           is.finite(dist_from_equator), is.finite(dist_from_coast_km),
+           !is.na(elevation_scaled), !is.na(temperature_scaled),
+           !is.na(precipitation_scaled), !is.na(dist_to_city_scaled)) %>%
     inner_join(
       grid_taxonomy %>% filter(class %in% top_5_classes),
       by = "grid_id"
     )
+
+  message(sprintf("  Grid cells with taxonomic data: %d", nrow(grid_tax_env)))
 
   # Fit separate models for each major taxonomic group
   taxonomic_models <- list()
