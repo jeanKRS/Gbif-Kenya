@@ -129,7 +129,8 @@ if (models_exist) {
     n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
       dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
     data = grid_model,
-    family = poisson(link = "log")
+    family = poisson(link = "log"),
+    control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
   )
 
   # Check for overdispersion
@@ -157,7 +158,7 @@ if (models_exist) {
         n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
           dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
         data = grid_model,
-        control = glm.control(maxit = 100)
+        control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
       )
       fit_successful <- TRUE
       message("    ✓ Full model converged")
@@ -172,7 +173,7 @@ if (models_exist) {
         glm_nb <- glm.nb(
           n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled,
           data = grid_model,
-          control = glm.control(maxit = 100)
+          control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
         )
         fit_successful <- TRUE
         message("    ✓ Simpler model converged")
@@ -193,7 +194,7 @@ if (models_exist) {
             dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
           data = grid_model,
           init.theta = 1,
-          control = glm.control(maxit = 100)
+          control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
         )
         fit_successful <- TRUE
         message("    ✓ Model with starting values converged")
@@ -246,7 +247,8 @@ if (models_exist) {
     presence ~ elevation_scaled + temperature_scaled + precipitation_scaled +
       dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
     data = grid_model,
-    family = binomial(link = "logit")
+    family = binomial(link = "logit"),
+    control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
   )
 
   message("  ✓ GLM models fitted")
@@ -280,8 +282,29 @@ print(perf_presence)
 # 5. MODEL SUMMARIES AND INFERENCE ---------------------------------------------
 message("\n=== Extracting model summaries ===")
 
+# Helper function to safely extract model summaries with Wald CIs
+safe_tidy_with_ci <- function(model, model_name) {
+  # Get basic tidy output without CI
+  tidy_result <- broom::tidy(model)
+
+  # Calculate Wald confidence intervals (more robust than profile CIs)
+  tryCatch({
+    ci <- confint.default(model)  # Uses Wald method instead of profile
+    tidy_result$conf.low <- ci[, 1]
+    tidy_result$conf.high <- ci[, 2]
+    message(sprintf("  ✓ Calculated Wald confidence intervals for %s", model_name))
+  }, error = function(e) {
+    message(sprintf("  ⚠ Could not calculate CIs for %s: %s", model_name, e$message))
+    # Calculate approximate CIs using standard errors
+    tidy_result$conf.low <- tidy_result$estimate - 1.96 * tidy_result$std.error
+    tidy_result$conf.high <- tidy_result$estimate + 1.96 * tidy_result$std.error
+  })
+
+  return(tidy_result)
+}
+
 # Summary for count model
-summary_count <- broom::tidy(primary_model, conf.int = TRUE) %>%
+summary_count <- safe_tidy_with_ci(primary_model, "Count Model") %>%
   mutate(
     model = "Count Model",
     significant = p.value < 0.05,
@@ -289,7 +312,7 @@ summary_count <- broom::tidy(primary_model, conf.int = TRUE) %>%
   )
 
 # Summary for presence model
-summary_presence <- broom::tidy(glm_binomial, conf.int = TRUE) %>%
+summary_presence <- safe_tidy_with_ci(glm_binomial, "Presence Model") %>%
   mutate(
     model = "Presence Model",
     significant = p.value < 0.05,
@@ -624,7 +647,7 @@ if (taxonomic_models_exist) {
         n_records_class ~ elevation_scaled + temperature_scaled + precipitation_scaled +
           dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
         data = class_data,
-        control = glm.control(maxit = 100)
+        control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
       )
       fit_successful <- TRUE
     }, error = function(e) {
@@ -638,7 +661,7 @@ if (taxonomic_models_exist) {
         model_class <- glm.nb(
           n_records_class ~ elevation_scaled + temperature_scaled + precipitation_scaled,
           data = class_data,
-          control = glm.control(maxit = 100)
+          control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
         )
         fit_successful <- TRUE
       }, error = function(e) {
@@ -655,7 +678,7 @@ if (taxonomic_models_exist) {
             dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
           data = class_data,
           family = poisson(link = "log"),
-          control = glm.control(maxit = 100)
+          control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
         )
         fit_successful <- TRUE
         message(sprintf("      Note: Using Poisson model for %s (NB failed to converge)", tax_class))
@@ -668,8 +691,8 @@ if (taxonomic_models_exist) {
     if (fit_successful && !is.null(model_class)) {
       taxonomic_models[[tax_class]] <- model_class
 
-      # Extract summary
-      taxonomic_summaries[[tax_class]] <- broom::tidy(model_class, conf.int = TRUE) %>%
+      # Extract summary using safe method with Wald CIs
+      taxonomic_summaries[[tax_class]] <- safe_tidy_with_ci(model_class, paste("Taxonomic model:", tax_class)) %>%
         mutate(
           taxonomic_class = tax_class,
           significant = p.value < 0.05,
