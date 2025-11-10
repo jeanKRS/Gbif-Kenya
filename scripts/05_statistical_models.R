@@ -55,9 +55,9 @@ grid_coords <- st_coordinates(grid_centroids)
 message("Extracting environmental values for grid cells...")
 grid_env <- spatial_grid %>%
   mutate(
-    elevation = terra::extract(elevation, grid_coords)[, 2],
-    temperature = terra::extract(temperature, grid_coords)[, 2],
-    precipitation = terra::extract(precipitation, grid_coords)[, 2],
+    elevation = terra::extract(elevation, grid_coords)[, 1],
+    temperature = terra::extract(temperature, grid_coords)[, 1],
+    precipitation = terra::extract(precipitation, grid_coords)[, 1],
     lon = grid_coords[, 1],
     lat = grid_coords[, 2]
   )
