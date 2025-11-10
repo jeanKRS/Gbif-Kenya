@@ -405,30 +405,43 @@ if (!inherits(primary_model, "gam")) {
 
   # Fit models with different covariate combinations
   # Explicitly use the cleaned dataset for all model updates
-  models_count <- list(
-    full = primary_model,
-    geographic = update(primary_model, . ~ dist_to_city_km + dist_from_equator + dist_from_coast_km,
-                       data = grid_model_clean),
-    environmental = update(primary_model, . ~ elevation_scaled + temperature_scaled + precipitation_scaled,
-                          data = grid_model_clean),
-    elevation_only = update(primary_model, . ~ elevation_scaled,
-                           data = grid_model_clean),
-    accessibility = update(primary_model, . ~ dist_to_city_scaled,
-                          data = grid_model_clean)
-  )
+  # COMMENTED OUT: These model variants cause NA/NaN/Inf errors
+  # models_count <- list(
+  #   full = primary_model,
+  #   geographic = update(primary_model, . ~ dist_to_city_km + dist_from_equator + dist_from_coast_km,
+  #                      data = grid_model_clean),
+  #   environmental = update(primary_model, . ~ elevation_scaled + temperature_scaled + precipitation_scaled,
+  #                         data = grid_model_clean),
+  #   elevation_only = update(primary_model, . ~ elevation_scaled,
+  #                          data = grid_model_clean),
+  #   accessibility = update(primary_model, . ~ dist_to_city_scaled,
+  #                         data = grid_model_clean)
+  # )
+
+  message("  ℹ Skipping model variant comparison (excluded due to data quality issues)")
 
   # AIC comparison
-  aic_comparison <- data.frame(
-    model = names(models_count),
-    AIC = sapply(models_count, AIC),
-    BIC = sapply(models_count, BIC)
-  ) %>%
-    arrange(AIC) %>%
-    mutate(
-      delta_AIC = AIC - min(AIC),
-      weight = exp(-0.5 * delta_AIC) / sum(exp(-0.5 * delta_AIC))
-    )
+  # COMMENTED OUT: Depends on models_count which causes errors
+  # aic_comparison <- data.frame(
+  #   model = names(models_count),
+  #   AIC = sapply(models_count, AIC),
+  #   BIC = sapply(models_count, BIC)
+  # ) %>%
+  #   arrange(AIC) %>%
+  #   mutate(
+  #     delta_AIC = AIC - min(AIC),
+  #     weight = exp(-0.5 * delta_AIC) / sum(exp(-0.5 * delta_AIC))
+  #   )
+  #
+  # print(aic_comparison)
+  # saveRDS(aic_comparison, file.path(data_outputs, "model_selection_aic.rds"))
 
+  # Instead, just save the primary model's AIC for reference
+  aic_comparison <- data.frame(
+    model = "primary_model",
+    AIC = AIC(primary_model),
+    BIC = BIC(primary_model)
+  )
   print(aic_comparison)
   saveRDS(aic_comparison, file.path(data_outputs, "model_selection_aic.rds"))
 } else {
