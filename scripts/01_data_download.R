@@ -29,7 +29,7 @@ message("Initiating GBIF download for Kenya...")
 
 # Option 1: Use existing download key if available
 # Uncomment and replace with actual download key if data already downloaded
-# download_key <- 0024317-251025141854904 # "YOUR_DOWNLOAD_KEY_HERE"
+download_key <- 0024317-251025141854904 # "YOUR_DOWNLOAD_KEY_HERE"
 
 # Option 2: Request new download (requires GBIF login)
 # Note: This creates a download request. Check status at www.gbif.org
