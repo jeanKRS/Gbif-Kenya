@@ -27,7 +27,6 @@ required_packages <- c(
 
   # GBIF and biodiversity data
   "rgbif",            # GBIF API interface
-  "occAssess",        # Occurrence bias assessment
   "CoordinateCleaner",# Coordinate cleaning
   "geodata",          # Geographic data download
 
@@ -67,6 +66,9 @@ required_packages <- c(
   "usethis",          # Project setup utilities
   "devtools"          # Package development tools
 )
+
+# GBIF and biodiversity data
+if (!"occAssess" %in% installed.packages()) devtools::install_github("https://github.com/robboyd/occAssess") # Occurrence bias assessment
 
 # Function to install packages ------------------------------------------------
 install_if_missing <- function(packages) {
