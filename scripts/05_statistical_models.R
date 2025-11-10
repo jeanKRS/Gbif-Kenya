@@ -123,12 +123,18 @@ if (models_exist) {
 } else {
   message("  → Fitting GLM models...")
 
-  # Model 1: Poisson GLM for record count
+  # Model 1: Poisson GLM for record count (using only non-zero counts for stability)
   message("  Fitting Poisson GLM...")
+
+  # Filter data for GLM fitting: remove zeros to avoid numerical issues
+  grid_model_nonzero <- grid_model %>% filter(n_records > 0)
+  message(sprintf("  Using %d cells with records (out of %d total)",
+                  nrow(grid_model_nonzero), nrow(grid_model)))
+
   glm_poisson <- glm(
     n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
       dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
-    data = grid_model,
+    data = grid_model_nonzero,
     family = poisson(link = "log")
   )
 
@@ -139,13 +145,34 @@ if (models_exist) {
   # Model 2: Negative binomial GLM (if overdispersed)
   if (overdispersion > 2) {
     message("  Data is overdispersed. Fitting Negative Binomial GLM...")
-    glm_nb <- glm.nb(
-      n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
-        dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
-      data = grid_model
-    )
+
+    # Use Poisson coefficients as starting values
+    poisson_coefs <- coef(glm_poisson)
+
+    # Fit with improved control parameters and starting values
+    glm_nb <- tryCatch({
+      glm.nb(
+        n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+          dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+        data = grid_model_nonzero,
+        init.theta = 1,  # Starting value for theta
+        control = glm.control(maxit = 100, epsilon = 1e-8),
+        start = poisson_coefs
+      )
+    }, error = function(e) {
+      message("  First attempt failed. Trying with simpler model...")
+      # Try with fewer predictors if full model fails
+      glm.nb(
+        n_records ~ elevation_scaled + dist_to_city_scaled,
+        data = grid_model_nonzero,
+        init.theta = 1,
+        control = glm.control(maxit = 100)
+      )
+    })
+
     primary_model <- glm_nb
     model_type <- "Negative Binomial"
+    message(sprintf("  Theta (dispersion): %.4f", glm_nb$theta))
   } else {
     primary_model <- glm_poisson
     model_type <- "Poisson"
@@ -217,13 +244,40 @@ saveRDS(model_summaries, file.path(data_outputs, "model_summaries.rds"))
 message("\n=== Performing model selection ===")
 
 # Fit models with different covariate combinations
-models_count <- list(
-  full = primary_model,
-  geographic = update(primary_model, . ~ dist_to_city_scaled + dist_from_equator + dist_from_coast_km),
-  environmental = update(primary_model, . ~ elevation_scaled + temperature_scaled + precipitation_scaled),
-  elevation_only = update(primary_model, . ~ elevation_scaled),
-  accessibility = update(primary_model, . ~ dist_to_city_scaled)
-)
+# Note: We need to refit rather than use update() to ensure we use the correct data
+if (model_type == "Negative Binomial") {
+  models_count <- list(
+    full = primary_model,
+    geographic = glm.nb(
+      n_records ~ dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+      data = grid_model_nonzero,
+      control = glm.control(maxit = 100)
+    ),
+    environmental = glm.nb(
+      n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled,
+      data = grid_model_nonzero,
+      control = glm.control(maxit = 100)
+    ),
+    elevation_only = glm.nb(
+      n_records ~ elevation_scaled,
+      data = grid_model_nonzero,
+      control = glm.control(maxit = 100)
+    ),
+    accessibility = glm.nb(
+      n_records ~ dist_to_city_scaled,
+      data = grid_model_nonzero,
+      control = glm.control(maxit = 100)
+    )
+  )
+} else {
+  models_count <- list(
+    full = primary_model,
+    geographic = update(primary_model, . ~ dist_to_city_scaled + dist_from_equator + dist_from_coast_km),
+    environmental = update(primary_model, . ~ elevation_scaled + temperature_scaled + precipitation_scaled),
+    elevation_only = update(primary_model, . ~ elevation_scaled),
+    accessibility = update(primary_model, . ~ dist_to_city_scaled)
+  )
+}
 
 # AIC comparison
 aic_comparison <- data.frame(
@@ -301,19 +355,27 @@ dev.off()
 message("\n=== Generating predictions ===")
 
 # Predict sampling effort
+# Note: Models were fitted on non-zero data, but we predict for ALL grid cells
+# This allows us to identify under-sampled areas (cells with 0 records but predicted to have records)
 grid_model <- grid_model %>%
   mutate(
     predicted_count = predict(primary_model, newdata = ., type = "response"),
     predicted_presence = predict(glm_binomial, newdata = ., type = "response")
   )
 
+# Check for prediction issues
+n_na_predictions <- sum(is.na(grid_model$predicted_count))
+if (n_na_predictions > 0) {
+  message(sprintf("  Warning: %d cells have NA predictions (will be excluded from residuals)", n_na_predictions))
+}
+
 # Calculate residuals
 grid_model <- grid_model %>%
   mutate(
     residual_count = n_records - predicted_count,
-    residual_std = residual_count / sd(residual_count),
-    under_sampled = residual_std < -1,
-    over_sampled = residual_std > 1
+    residual_std = residual_count / sd(residual_count, na.rm = TRUE),
+    under_sampled = !is.na(residual_std) & residual_std < -1,
+    over_sampled = !is.na(residual_std) & residual_std > 1
   )
 
 # Identify under-sampled areas
@@ -457,11 +519,13 @@ if (taxonomic_models_exist) {
     }
 
     tryCatch({
-      # Fit negative binomial model for this taxonomic group
+      # Fit negative binomial model for this taxonomic group with improved settings
       model_class <- glm.nb(
         n_records_class ~ elevation_scaled + temperature_scaled + precipitation_scaled +
           dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
-        data = class_data
+        data = class_data,
+        init.theta = 1,
+        control = glm.control(maxit = 100, epsilon = 1e-8)
       )
 
       taxonomic_models[[tax_class]] <- model_class
@@ -474,9 +538,33 @@ if (taxonomic_models_exist) {
           effect_direction = ifelse(estimate > 0, "Positive", "Negative")
         )
 
-      message(sprintf("    ✓ Completed model for %s", tax_class))
+      message(sprintf("    ✓ Completed model for %s (theta: %.4f)", tax_class, model_class$theta))
     }, error = function(e) {
       message(sprintf("    ✗ Error in model for %s: %s", tax_class, e$message))
+      message("      Trying simpler model...")
+
+      # Try with fewer predictors
+      tryCatch({
+        model_class <- glm.nb(
+          n_records_class ~ elevation_scaled + dist_to_city_scaled,
+          data = class_data,
+          init.theta = 1,
+          control = glm.control(maxit = 100)
+        )
+
+        taxonomic_models[[tax_class]] <- model_class
+
+        taxonomic_summaries[[tax_class]] <- broom::tidy(model_class, conf.int = TRUE) %>%
+          mutate(
+            taxonomic_class = tax_class,
+            significant = p.value < 0.05,
+            effect_direction = ifelse(estimate > 0, "Positive", "Negative")
+          )
+
+        message(sprintf("    ✓ Completed simplified model for %s", tax_class))
+      }, error = function(e2) {
+        message(sprintf("    ✗ Simplified model also failed for %s: %s", tax_class, e2$message))
+      })
     })
   }
 
