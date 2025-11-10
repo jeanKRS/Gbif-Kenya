@@ -128,6 +128,7 @@ message("\n=== Assessing accessibility bias ===")
 message("Downloading elevation data...")
 elevation_data <- elevation_30s(country = "KEN", path = tempdir())
 elevation <- if (is.character(elevation_data)) terra::rast(elevation_data) else elevation_data
+elevation = terra::extract(elevation, kenya_coords)[, 1]
 
 # Get climate data
 message("Downloading climate data...")
@@ -142,9 +143,9 @@ kenya_coords <- kenya_data %>%
 # Extract elevation
 kenya_data_env <- kenya_data %>%
   mutate(
-    elevation = terra::extract(elevation, kenya_coords)[, 2],
-    bio1_temp = terra::extract(climate[[1]], kenya_coords)[, 2],  # Annual mean temp
-    bio12_precip = terra::extract(climate[[12]], kenya_coords)[, 2]  # Annual precip
+    elevation = elevation,
+    bio1_temp = terra::extract(climate[[1]], kenya_coords)[, 1],  # Annual mean temp
+    bio12_precip = terra::extract(climate[[12]], kenya_coords)[, 1]  # Annual precip
   )
 
 # Calculate distance to nearest record for each grid cell
@@ -350,3 +351,4 @@ saveRDS(spatial_summary, file.path(data_outputs, "spatial_bias_summary.rds"))
 message("\n=== Spatial bias assessment complete ===")
 message("Results saved to: ", data_outputs)
 message("Figures saved to: ", figures_dir)
+
