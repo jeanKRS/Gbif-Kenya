@@ -411,9 +411,9 @@ background_points <- st_sample(kenya_boundary, size = 10000) %>%
 # Extract environmental values for background
 bg_env <- data.frame(
   type = "available",
-  elevation = terra::extract(elevation, background_points)[, 2],
-  temperature = terra::extract(climate[[1]], background_points)[, 2],
-  precipitation = terra::extract(climate[[12]], background_points)[, 2]
+  elevation = terra::extract(elevation, background_points)[, 1],
+  temperature = terra::extract(climate[[1]], background_points)[, 1],
+  precipitation = terra::extract(climate[[12]], background_points)[, 1]
 )
 
 # Environmental values for occurrences
