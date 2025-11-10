@@ -453,7 +453,7 @@ ggsave(file.path(figures_dir, "10_taxonomic_treemap.png"),
        p1, width = 14, height = 10, dpi = 300)
 
 # Plot 2: Lorenz curve (taxonomic inequality)
-p2 <- ggplot(tax_proportions, aes(x = seq_along(cumsum_records) / n(),
+p2 <- ggplot(tax_proportions, aes(x = seq_along(cumsum_records) / nrow(tax_proportions),
                                   y = cumsum_records)) +
   geom_line(linewidth = 1.5, color = "blue") +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
