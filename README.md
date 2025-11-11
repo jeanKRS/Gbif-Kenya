@@ -1,16 +1,19 @@
-# Spatial, Temporal, and Taxonomic Bias Assessment of GBIF Data in Kenya
+# Comprehensive Data Quality Assessment and Bias Analysis of GBIF Data in Kenya
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
-This repository contains a comprehensive, reproducible analysis of spatial, temporal, and taxonomic biases in Global Biodiversity Information Facility (GBIF) occurrence data for Kenya. The analysis uses the `occAssess` R package and modern statistical methods to quantify biases and identify gaps in biodiversity data coverage.
+This repository contains a comprehensive, reproducible analysis of **data quality issues** and **systematic biases** in Global Biodiversity Information Facility (GBIF) occurrence data for Kenya. The analysis provides transparent documentation of all quality filters applied during data cleaning, quantifying the number and percentage of records affected by each issue. It also uses the `occAssess` R package and modern statistical methods to quantify spatial, temporal, and taxonomic biases and identify gaps in biodiversity data coverage.
 
 ## Key Features
 
+- **Comprehensive data quality tracking**: Systematic documentation and quantification of all quality issues (missing coordinates, coordinate uncertainty, duplicates, taxonomic completeness, etc.)
+- **Transparent quality reporting**: Detailed breakdown of records removed at each filtering step with percentages relative to original dataset
+- **CoordinateCleaner integration**: Seven independent coordinate quality tests with individual issue quantification
 - **Reproducible workflow**: All analyses are fully reproducible using R scripts and R Markdown
-- **Comprehensive bias assessment**: Spatial, temporal, and taxonomic dimensions analyzed
+- **Multi-dimensional bias assessment**: Spatial, temporal, and taxonomic dimensions analyzed
 - **Statistical modeling**: GLMs and GAMs to identify predictors of sampling effort
 - **Publication-ready outputs**: Figures, tables, and compiled manuscript
 - **Open science**: All code, data, and documentation openly available
@@ -20,18 +23,23 @@ This repository contains a comprehensive, reproducible analysis of spatial, temp
 ```
 Gbif-Kenya/
 ├── scripts/               # Analysis scripts (run in order)
-│   ├── 01_data_download.R           # Download and clean GBIF data
-│   ├── 02_spatial_bias.R            # Spatial bias assessment
-│   ├── 03_spatial_bias.R           # Temporal bias assessment
-│   ├── 04_taxonomic_bias.R          # Taxonomic bias assessment
-│   └── 05_statistical_models.R      # GLM/GAM modeling
+│   ├── 01_data_download.R            # Download and clean GBIF data
+│   ├── 01b_data_quality_assessment.R # Comprehensive quality tracking & metrics
+│   ├── 02_spatial_bias.R             # Spatial bias assessment
+│   ├── 03_temporal_bias.R            # Temporal bias assessment
+│   ├── 04_taxonomic_bias.R           # Taxonomic bias assessment
+│   └── 05_statistical_models.R       # GLM/GAM modeling
 ├── R/                     # Utility functions
-│   └── utils.R                      # Helper functions
+│   └── utils.R                       # Helper functions
 ├── data/                  # Data directory
-│   ├── raw/                         # Raw GBIF downloads
-│   ├── processed/                   # Cleaned data
-│   └── outputs/                     # Analysis outputs
+│   ├── raw/                          # Raw GBIF downloads
+│   ├── processed/                    # Cleaned data
+│   └── outputs/                      # Analysis outputs & quality metrics
 ├── figures/               # Generated figures
+│   ├── data_quality_cascade.png      # Quality filtering cascade
+│   ├── data_quality_retention.png    # Cumulative retention plot
+│   ├── coordinate_issues_breakdown.png # Coordinate quality issues
+│   └── ...                           # Bias assessment figures
 ├── docs/                  # Documentation and manuscripts
 │   ├── kenya_gbif_bias_assessment.Rmd  # Main manuscript
 │   └── references.bib                   # Bibliography
@@ -117,6 +125,7 @@ setwd("path/to/Gbif-Kenya")
 
 # Run all analysis scripts in sequence
 source("scripts/01_data_download.R")
+source("scripts/01b_data_quality_assessment.R")  # NEW: Quality tracking
 source("scripts/02_spatial_bias.R")
 source("scripts/03_temporal_bias.R")
 source("scripts/04_taxonomic_bias.R")
@@ -141,6 +150,29 @@ This script:
 - Saves cleaned data to `data/processed/`
 
 **Note**: GBIF downloads can take time (minutes to hours). The script will wait for download completion.
+
+#### Step 1b: Data Quality Assessment (NEW)
+
+```r
+source("scripts/01b_data_quality_assessment.R")
+```
+
+This script:
+- Systematically tracks each quality filter applied during cleaning
+- Quantifies records removed at each step (counts and percentages)
+- Runs individual CoordinateCleaner tests to quantify specific coordinate issues
+- Calculates comprehensive quality metrics (taxonomic completeness, uncertainty distributions, duplicate rates)
+- Generates quality visualizations:
+  - Filtering cascade plot
+  - Cumulative retention plot
+  - Coordinate issues breakdown
+  - Summary pie chart
+
+Outputs:
+- `data/outputs/data_quality_assessment.rds` - Comprehensive quality metrics
+- `data/outputs/data_quality_tracking.csv` - Step-by-step filtering results
+- `data/outputs/coordinate_issues_summary.csv` - CoordinateCleaner test results
+- `figures/data_quality_*.png` - Quality visualization figures
 
 #### Step 2: Spatial Bias Assessment
 
