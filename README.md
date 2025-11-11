@@ -213,7 +213,7 @@ Outputs:
 
 ```r
 rmarkdown::render("docs/kenya_gbif_bias_assessment.Rmd",
-                  output_format = "all")
+                  output_format = "html_document") # "all"
 ```
 
 Generates publication-ready documents in HTML, PDF, and Word formats.
