@@ -66,6 +66,22 @@ source(here("R", "utils.R"))
 data_processed <- here("data", "processed")
 data_outputs <- here("data", "outputs")
 figures_dir <- here("figures")
+
+# Load all data needed for abstract and inline R code
+quality_assessment <- readRDS(file.path(data_outputs, "data_quality_assessment.rds"))
+quality_tracking <- quality_assessment$tracking
+coord_issues <- quality_assessment$coord_issues
+quality_metrics <- quality_assessment$metrics
+
+spatial_summary <- readRDS(file.path(data_outputs, "spatial_bias_summary.rds"))
+moran_results <- spatial_summary$moran_results
+
+temporal_summary <- readRDS(file.path(data_outputs, "temporal_bias_summary.rds"))
+temporal_stats <- temporal_summary$temporal_stats
+
+taxonomic_summary <- readRDS(file.path(data_outputs, "taxonomic_bias_summary.rds"))
+diversity_metrics <- taxonomic_summary$diversity_metrics
+gini_records <- diversity_metrics$value[diversity_metrics$metric == "Gini_records"]
 ```
 
 # Introduction
