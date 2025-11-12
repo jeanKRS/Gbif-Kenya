@@ -59,7 +59,7 @@ kenya_zip <- occ_download_get(kenya_download, path = data_raw, overwrite = TRUE)
 
 # Import data
 message("Importing data...")
-kenya_raw <- occ_download_import(kenya_zip)
+kenya_raw <- occ_download_import(x = kenya_zip)
 
 # Save raw data
 saveRDS(kenya_raw, file.path(data_raw, "kenya_gbif_raw.rds"))
