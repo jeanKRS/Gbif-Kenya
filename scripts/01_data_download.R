@@ -29,22 +29,28 @@ processed_data_file <- file.path(data_processed, "kenya_gbif_clean.rds")
 # Set force_download to TRUE to force re-download even if data exists
 force_download <- FALSE
 
+# Flag to track whether we need to clean data
+skip_cleaning <- FALSE
+
 if (file.exists(processed_data_file) && !force_download) {
   message("=== PROCESSED DATA ALREADY EXISTS ===")
   message("Found existing cleaned data at: ", processed_data_file)
-  message("Skipping download and cleaning steps.")
+  message("Loading existing data and skipping download/cleaning steps.")
   message("To force re-download, set force_download <- TRUE")
-  message("Exiting script.")
-  quit(save = "no")
-}
 
-if (file.exists(raw_data_file) && !force_download) {
+  # Load processed data and skip to summary generation
+  kenya_final <- readRDS(processed_data_file)
+  message("Loaded ", nrow(kenya_final), " cleaned records from existing file")
+  skip_cleaning <- TRUE
+
+} else if (file.exists(raw_data_file) && !force_download) {
   message("=== RAW DATA ALREADY EXISTS ===")
   message("Found existing raw data at: ", raw_data_file)
   message("Loading existing raw data instead of downloading...")
   kenya_raw <- readRDS(raw_data_file)
   message("Loaded ", nrow(kenya_raw), " records from existing file")
   message("To force re-download, set force_download <- TRUE")
+
 } else {
   # Set GBIF credentials (set as environment variables) -----------------------
   # Use: usethis::edit_r_environ() to set GBIF_USER, GBIF_PWD, GBIF_EMAIL
@@ -95,8 +101,9 @@ if (file.exists(raw_data_file) && !force_download) {
 }
 
 # Data cleaning ----------------------------------------------------------------
-message("Cleaning data...")
-message("Initial dataset: ", nrow(kenya_raw), " records")
+if (!skip_cleaning) {
+  message("\n=== Data Cleaning ===")
+  message("Initial dataset: ", nrow(kenya_raw), " records")
 
 # Convert to data.table for memory-efficient operations
 library(data.table)
@@ -248,7 +255,15 @@ kenya_final <- kenya_clean %>%
 
 message("Final dataset: ", nrow(kenya_final), " records")
 
+  # Save cleaned data
+  saveRDS(kenya_final, file.path(data_processed, "kenya_gbif_clean.rds"))
+  write_csv(kenya_final, file.path(data_processed, "kenya_gbif_clean.csv"))
+  message("Clean data saved to: ", file.path(data_processed, "kenya_gbif_clean.rds"))
+
+} # End of cleaning section
+
 # Data summary -----------------------------------------------------------------
+message("\n=== Generating Summary Statistics ===")
 summary_stats <- kenya_final %>%
   summarise(
     n_records = n(),
@@ -276,10 +291,6 @@ tax_summary <- kenya_final %>%
   arrange(desc(n_records))
 
 print(head(tax_summary, 20))
-
-# Save cleaned data ------------------------------------------------------------
-saveRDS(kenya_final, file.path(data_processed, "kenya_gbif_clean.rds"))
-write_csv(kenya_final, file.path(data_processed, "kenya_gbif_clean.csv"))
 
 # Save summary statistics
 saveRDS(summary_stats, file.path(data_processed, "summary_stats.rds"))
