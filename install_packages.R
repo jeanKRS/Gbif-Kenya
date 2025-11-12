@@ -13,6 +13,7 @@ cat("==================================================================\n\n")
 required_packages <- c(
   # Data manipulation and utilities
   "tidyverse",        # Data wrangling and visualization
+  "data.table",       # Fast data manipulation for large datasets
   "here",             # Path management
   "lubridate",        # Date handling
   "scales",           # Formatting numbers and dates

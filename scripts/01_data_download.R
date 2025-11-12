@@ -9,6 +9,7 @@
 suppressPackageStartupMessages({
   library(rgbif)
   library(tidyverse)
+  library(data.table)
   library(sf)
   library(here)
   library(CoordinateCleaner)
@@ -67,27 +68,108 @@ message("Raw data saved: ", nrow(kenya_raw), " records")
 
 # Data cleaning ----------------------------------------------------------------
 message("Cleaning data...")
+message("Initial dataset: ", nrow(kenya_raw), " records")
 
-kenya_clean <- kenya_raw %>%
-  # Remove records with missing coordinates
-  filter(!is.na(decimalLongitude), !is.na(decimalLatitude)) %>%
-  # Remove records with high coordinate uncertainty (>10km)
-  filter(coordinateUncertaintyInMeters < 10000 | is.na(coordinateUncertaintyInMeters)) %>%
-  # Remove fossil and living specimens
-  filter(!basisOfRecord %in% c("FOSSIL_SPECIMEN", "LIVING_SPECIMEN")) %>%
-  # Remove records without species-level identification
-  filter(!is.na(species), species != "") %>%
-  # Parse dates
-  mutate(
-    eventDate = ymd(eventDate),
-    year = year(eventDate),
-    month = month(eventDate),
-    day = day(eventDate)
-  ) %>%
-  # Remove records with invalid years
-  filter(year >= 1950, year <= year(Sys.Date())) %>%
-  # Remove duplicate records (same species, location, date)
-  distinct(species, decimalLongitude, decimalLatitude, eventDate, .keep_all = TRUE)
+# Convert to data.table for memory-efficient operations
+library(data.table)
+kenya_dt <- as.data.table(kenya_raw)
+
+# Clear original to free memory
+rm(kenya_raw)
+gc()
+
+# Filter 1: Remove records with missing coordinates (most restrictive first)
+message("Filtering missing coordinates...")
+kenya_dt <- kenya_dt[!is.na(decimalLongitude) & !is.na(decimalLatitude)]
+message("  After coordinate filter: ", nrow(kenya_dt), " records")
+gc()
+
+# Filter 2: Remove records without species-level identification
+message("Filtering species identification...")
+kenya_dt <- kenya_dt[!is.na(species) & species != ""]
+message("  After species filter: ", nrow(kenya_dt), " records")
+gc()
+
+# Filter 3: Remove fossil and living specimens
+message("Filtering basis of record...")
+kenya_dt <- kenya_dt[!basisOfRecord %in% c("FOSSIL_SPECIMEN", "LIVING_SPECIMEN")]
+message("  After basis filter: ", nrow(kenya_dt), " records")
+gc()
+
+# Filter 4: Remove records with high coordinate uncertainty (>10km)
+message("Filtering coordinate uncertainty...")
+kenya_dt <- kenya_dt[coordinateUncertaintyInMeters < 10000 | is.na(coordinateUncertaintyInMeters)]
+message("  After uncertainty filter: ", nrow(kenya_dt), " records")
+gc()
+
+# Handle date columns efficiently
+message("Processing date information...")
+current_year <- year(Sys.Date())
+
+# Check if year/month/day columns already exist in GBIF data
+if ("year" %in% names(kenya_dt) && !"eventDate_parsed" %in% names(kenya_dt)) {
+  # Use existing year column and validate
+  message("  Using existing year column from GBIF data")
+  kenya_dt[, year := as.integer(year)]
+
+  # Only parse eventDate for records with valid years or missing years
+  kenya_dt[is.na(year) & !is.na(eventDate),
+           eventDate_parsed := suppressWarnings(ymd(eventDate, quiet = TRUE))]
+  kenya_dt[is.na(year) & !is.na(eventDate_parsed),
+           year := year(eventDate_parsed)]
+
+  # Parse month and day if they don't exist
+  if (!"month" %in% names(kenya_dt)) {
+    kenya_dt[, month := as.integer(month)]
+  }
+  if (!"day" %in% names(kenya_dt)) {
+    kenya_dt[, day := as.integer(day)]
+  }
+
+} else {
+  # Parse dates from eventDate column
+  message("  Parsing eventDate column (this may take a moment)...")
+
+  # Only attempt to parse non-empty, non-NA dates
+  kenya_dt[!is.na(eventDate) & eventDate != "",
+           eventDate_parsed := suppressWarnings(ymd(eventDate, quiet = TRUE))]
+
+  # Extract year, month, day from parsed dates
+  kenya_dt[!is.na(eventDate_parsed), `:=`(
+    year = year(eventDate_parsed),
+    month = month(eventDate_parsed),
+    day = day(eventDate_parsed)
+  )]
+}
+
+# Count parsing failures
+n_failed <- kenya_dt[is.na(year) | year < 1950 | year > current_year, .N]
+message("  Records with invalid/missing years: ", n_failed)
+
+# Filter 5: Remove records with invalid years
+message("Filtering invalid years...")
+kenya_dt <- kenya_dt[!is.na(year) & year >= 1950 & year <= current_year]
+message("  After year filter: ", nrow(kenya_dt), " records")
+gc()
+
+# Filter 6: Remove duplicate records
+message("Removing duplicates...")
+# Create a date column for duplicate detection (handle NA dates)
+kenya_dt[, event_date := as.Date(ifelse(!is.na(eventDate_parsed),
+                                         as.character(eventDate_parsed),
+                                         NA_character_))]
+
+# Remove duplicates based on species, location, and date
+initial_n <- nrow(kenya_dt)
+kenya_dt <- unique(kenya_dt, by = c("species", "decimalLongitude", "decimalLatitude", "event_date"))
+message("  Removed ", initial_n - nrow(kenya_dt), " duplicate records")
+message("  After deduplication: ", nrow(kenya_dt), " records")
+gc()
+
+# Convert back to tibble for compatibility with downstream code
+kenya_clean <- as_tibble(kenya_dt)
+rm(kenya_dt)
+gc()
 
 message("After initial cleaning: ", nrow(kenya_clean), " records")
 
