@@ -352,6 +352,8 @@ if (file.exists(quality_file)) {
   )
 
   # Create detailed coordinate issues table
+  # NOTE: Individual test counts may overlap - one record can be flagged by multiple tests
+  # Therefore, sum(records_flagged) may exceed the total number of unique records flagged
   coord_issues_df <- tibble(
     test = c("Capitals", "Centroids", "Equal coordinates", "GBIF HQ",
              "Zeros", "Urban areas", "Outliers"),
@@ -409,7 +411,9 @@ if (file.exists(quality_file)) {
     coordinate_quality = list(
       uncertainty_summary = uncertainty_summary,
       coord_issues_summary = coord_issues_df,
+      # Count of unique records flagged by ANY CoordinateCleaner test
       total_coord_flags = sum(flags_all),
+      # Percentage of records at step 7 that were flagged (should be 0-100%)
       percent_coord_flags = (sum(flags_all) / nrow(kenya_step7)) * 100
     ),
 
