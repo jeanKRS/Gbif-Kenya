@@ -413,8 +413,8 @@ if (file.exists(quality_file)) {
       coord_issues_summary = coord_issues_df,
       # Count of unique records flagged by ANY CoordinateCleaner test
       total_coord_flags = sum(flags_all),
-      # Percentage of records at step 7 that were flagged (should be 0-100%)
-      percent_coord_flags = (sum(flags_all) / nrow(kenya_step7)) * 100
+      # Percentage of original records that were flagged
+      percent_coord_flags = (sum(flags_all) / n_original) * 100
     ),
 
     # Taxonomic completeness
