@@ -88,30 +88,88 @@ gini_records <- diversity_metrics$value[diversity_metrics$metric == "Gini_record
 
 # Introduction
 
-Biodiversity data from the Global Biodiversity Information Facility (GBIF) represent one of the largest openly accessible repositories of species occurrence records, with over 2 billion records globally [@gbif2023]. However, these data are known to suffer from both fundamental quality issues and systematic biases arising from non-random sampling efforts, taxonomic preferences, accessibility constraints, and historical collection practices [@beck2014; @hortal2015].
+## The Growing Importance of Biodiversity Data
 
-Data quality issues in GBIF include missing or erroneous coordinates, taxonomic misidentifications, temporal inconsistencies, and duplicate records [@zizka2019]. These issues can substantially affect downstream analyses if not properly addressed. Beyond quality control, systematic biases in sampling effort create uneven spatial, temporal, and taxonomic coverage that can bias biodiversity assessments, species distribution models, and conservation prioritization [@hortal2007; @beck2014].
+Biodiversity data from the Global Biodiversity Information Facility (GBIF) represent one of the largest openly accessible repositories of species occurrence records, with over 2 billion records globally [@gbif2023]. These data are increasingly used for critical applications including conservation planning, climate change research, species distribution modeling, biodiversity assessment, and policy decisions. However, the utility of these data for scientific research and conservation management depends fundamentally on both their quality and their representativeness [@meyer2016].
 
-Kenya, as a biodiversity hotspot with rich fauna and flora, has substantial GBIF records, yet both the data quality and the spatial, temporal, and taxonomic representativeness of these data remain poorly quantified. Most biodiversity studies using GBIF data apply quality filters but rarely document and quantify the specific issues encountered, making it difficult to assess the reliability of cleaned datasets or compare data quality across regions.
+## The Dual Challenge: Quality and Bias
 
-The occAssess R package [@marsh2023] provides a comprehensive framework for assessing biases in species occurrence data, while the CoordinateCleaner package [@zizka2019] offers tools for identifying coordinate quality issues. Understanding both data quality and systematic biases is critical for:
+GBIF data face two distinct but interconnected challenges:
 
-1. Assessing the reliability and fitness-for-use of biodiversity data
-2. Informing conservation prioritization
-3. Improving species distribution models
-4. Guiding future survey efforts
-5. Ensuring robust biodiversity assessments for policy and management decisions
-6. Providing transparency in data processing workflows
+**Data Quality Issues** include technical errors and inconsistencies such as missing or erroneous coordinates, taxonomic misidentifications, temporal inconsistencies, and duplicate records [@zizka2019]. These issues arise from:
+- Historical data digitization from museum specimens with incomplete metadata
+- Georeferencing errors when converting locality descriptions to coordinates
+- Taxonomic revisions that create outdated names in historical records
+- Data entry mistakes during transcription
+- Multiple institutions sharing the same observations, creating duplicates
 
-This study provides the first comprehensive, reproducible assessment of both data quality issues and systematic biases in biodiversity data for Kenya using standardized methods. Our objectives are to:
+**Systematic Biases** stem from non-random sampling efforts that create uneven coverage across space, time, and taxonomic groups [@beck2014; @hortal2015]. Unlike quality issues (which are errors), biases reflect real patterns in where, when, and what researchers choose to sample:
+- **Spatial bias**: Sampling concentrated near roads, cities, and accessible areas
+- **Temporal bias**: Increased sampling in recent decades due to digital technologies
+- **Taxonomic bias**: Focus on charismatic species, economically important groups, or taxa with active hobbyist communities
 
-1. Systematically document and quantify all data quality issues identified during cleaning, reporting the number and percentage of records affected by each issue
-2. Quantify spatial bias and sampling completeness across Kenya
-3. Assess temporal patterns in data collection and identify gaps
-4. Evaluate taxonomic bias across major taxonomic groups
-5. Identify environmental and geographic covariates associated with sampling effort
-6. Provide recommendations for targeted sampling to address identified gaps
-7. Present a reproducible framework for comprehensive data quality and bias assessment applicable to other regions
+Both quality issues and systematic biases can substantially affect downstream analyses if not properly addressed. Quality issues introduce noise and errors, while biases create misleading patterns that can be mistaken for biological signals. For example, high species richness near cities might reflect sampling effort rather than true biodiversity patterns.
+
+## The Kenya Context
+
+Kenya, as a biodiversity hotspot with rich fauna and flora across diverse ecosystems (coastal forests, savannas, highlands, and arid lands), has accumulated substantial GBIF records over decades of research and conservation work. However, both the data quality and the spatial, temporal, and taxonomic representativeness of these data remain poorly quantified. Understanding these aspects is critical for Kenya because:
+
+1. The country hosts numerous endemic and threatened species requiring evidence-based conservation
+2. Climate change impacts on East African biodiversity need robust baseline data
+3. Conservation planning and protected area management depend on accurate species distribution information
+4. National biodiversity monitoring and reporting obligations require reliable data sources
+
+## The Documentation Gap
+
+Most biodiversity studies using GBIF data apply quality filters but rarely document and quantify the specific issues encountered. Papers typically report only the final cleaned dataset size (e.g., "After quality filtering, 500,000 records remained"), without specifying:
+- How many records were removed at each filtering step
+- What specific quality issues were most prevalent
+- What percentage of records had coordinate errors, missing taxonomy, or duplicates
+- Whether sampling biases were assessed and how they might affect conclusions
+
+This lack of transparency makes it difficult to:
+- Assess the reliability of cleaned datasets
+- Compare data quality across regions or taxonomic groups
+- Understand whether quality standards were appropriate for the research question
+- Replicate filtering procedures in other studies
+- Identify systemic issues that data providers could address
+
+## Study Framework and Tools
+
+Recent advances in biodiversity informatics have produced powerful tools for data quality assessment and bias detection. The occAssess R package [@marsh2023] provides a comprehensive framework for assessing biases in species occurrence data through spatial, temporal, and taxonomic analyses. The CoordinateCleaner package [@zizka2019] offers automated tools for identifying common coordinate quality issues such as institutional coordinates, country centroids, and statistical outliers.
+
+By combining these tools with transparent documentation of quality filtering steps, we can address the dual challenges of quality and bias in a systematic, reproducible way. Understanding both aspects is critical for:
+
+1. **Assessing fitness-for-use**: Different research questions have different quality requirements. Fine-scale conservation planning needs higher coordinate precision than broad-scale macroecological studies.
+2. **Informing conservation prioritization**: Biased data can lead to biased conservation decisions, potentially overlooking under-sampled regions with high conservation value.
+3. **Improving species distribution models**: Models trained on biased data may produce unreliable predictions, especially when projected to under-sampled regions.
+4. **Guiding future survey efforts**: Identifying sampling gaps helps target field work where it will maximize information gain.
+5. **Ensuring robust biodiversity assessments**: National reporting on biodiversity trends requires understanding data limitations and potential biases.
+6. **Providing transparency**: Full documentation of data processing enables replication, comparison across studies, and informed interpretation of results.
+
+## Study Objectives
+
+This study provides the first comprehensive, reproducible assessment of both data quality issues and systematic biases in biodiversity data for Kenya using standardized methods. Unlike previous studies that focus on either quality or bias, we integrate both perspectives to provide a complete picture of data reliability and representativeness.
+
+Our specific objectives are to:
+
+1. **Systematically document all data quality issues** encountered during cleaning, reporting the number and percentage of records affected by each specific issue (missing coordinates, high uncertainty, missing taxonomy, temporal problems, duplicates, coordinate flags)
+
+2. **Quantify spatial bias patterns** across Kenya using grid-based analyses, assess sampling completeness, and test for spatial autocorrelation to identify clustered vs. dispersed sampling
+
+3. **Evaluate environmental bias** by comparing sampled locations to available environmental space, determining whether certain habitats, elevations, or climate zones are over- or under-represented
+
+4. **Assess temporal patterns** in data collection, identify temporal gaps and trends, and quantify temporal completeness to understand how data availability varies over time
+
+5. **Evaluate taxonomic bias** across major taxonomic groups using inequality metrics (Gini coefficients), diversity indices, and rarity analyses to identify which taxa are well-sampled vs. neglected
+
+6. **Identify environmental and geographic predictors** of sampling effort using statistical models (GLMs and GAMs) to understand what drives sampling patterns (accessibility, urbanization, environmental conditions)
+
+7. **Provide actionable recommendations** for targeted sampling to address identified gaps, enabling more strategic future data collection
+
+8. **Present a reproducible framework** for comprehensive data quality and bias assessment that can be readily applied to other countries, regions, or taxonomic groups
+
+By achieving these objectives, we provide both a thorough assessment of Kenya's biodiversity data and a methodological template for transparent, reproducible data quality and bias assessment in biodiversity informatics.
 
 # Methods
 
@@ -124,19 +182,39 @@ metadata <- readRDS(file.path(data_processed, "metadata.rds"))
 summary_stats <- readRDS(file.path(data_processed, "summary_stats.rds"))
 ```
 
-We downloaded species occurrence data for Kenya from GBIF using the `rgbif` package [@chamberlain2023]. The download (DOI: `r metadata$gbif_doi`) was performed on `r metadata$download_date` and included all records with coordinates, without geospatial issues, and from 1950 onwards.
+### Data Download
 
-Data cleaning steps included:
+We downloaded species occurrence data for Kenya from GBIF using the `rgbif` package [@chamberlain2023]. The download (DOI: `r metadata$gbif_doi`) was performed on `r metadata$download_date` using GBIF's API. We applied basic filters at the download stage to exclude obviously problematic records:
 
-- Removal of records with missing or invalid coordinates
-- Removal of records with coordinate uncertainty >10 km
-- Exclusion of fossil and living specimens
-- Removal of records without species-level identification
-- Temporal filtering (1950-present)
-- Duplicate record removal
-- Coordinate cleaning using CoordinateCleaner [@zizka2019]
+- **Geographic scope**: Records within Kenya's boundaries (identified by ISO country code KE)
+- **Coordinate presence**: Only records with decimal latitude and longitude (excluding records with no georeferencing)
+- **GBIF flags**: Excluded records flagged by GBIF as having geospatial issues at the time of download
+- **Temporal scope**: Records from 1950 onwards to focus on modern biodiversity patterns and exclude historical records that may have substantial georeferencing uncertainty
 
-The final cleaned dataset contained **`r format(nrow(kenya_data), big.mark=",")`** occurrence records representing **`r format(summary_stats$n_species, big.mark=",")`** species from **`r format(summary_stats$n_families, big.mark=",")`** families across **`r format(summary_stats$n_classes, big.mark=",")`** classes.
+These initial filters reduce download size and processing time while retaining the vast majority of usable records. However, additional quality filtering (documented below) is essential because GBIF's automated flags do not catch all quality issues.
+
+### Quality Filtering Rationale
+
+Data cleaning followed a sequential filtering approach where each step removes specific categories of problematic records. The order of filtering steps matters: we first remove records with fundamental issues (e.g., missing coordinates) before applying more sophisticated tests (e.g., coordinate quality flags) to the remaining data. This sequential approach:
+
+1. **Reduces computational burden**: Removing obviously bad records early speeds up later analyses
+2. **Prevents cascading errors**: Checking taxonomic completeness before coordinate quality avoids wasting time validating coordinates for records we'll exclude anyway
+3. **Enables precise tracking**: Each step's impact can be quantified independently
+4. **Facilitates sensitivity analyses**: Users can assess how different quality standards affect results
+
+The specific cleaning steps applied were:
+
+- **Removal of records with missing or invalid coordinates**: Essential for any spatial analysis; records without coordinates cannot be mapped or analyzed spatially
+- **Removal of records with coordinate uncertainty >10 km**: High uncertainty makes records unsuitable for fine-scale analyses. The 10 km threshold balances data retention with spatial precision requirements for most conservation applications
+- **Exclusion of fossil and living specimens**: These represent historical species occurrences or captive individuals, not current wild populations relevant to contemporary biodiversity assessment
+- **Removal of records without species-level identification**: Species is the fundamental unit for most biodiversity analyses. Records identified only to genus or family cannot contribute to species-specific questions
+- **Temporal filtering (1950-present)**: Focuses on recent biodiversity patterns while excluding historical records that often lack reliable georeferencing and may not reflect current distributions due to land use change
+- **Duplicate record removal**: The same observation may appear multiple times due to data aggregation from multiple sources, inflating species counts and sampling effort
+- **Coordinate cleaning using CoordinateCleaner**: Automated detection of common georeferencing errors such as swapped coordinates, institutional locations, country centroids, and statistical outliers [@zizka2019]
+
+### Cleaned Dataset Summary
+
+The final cleaned dataset contained **`r format(nrow(kenya_data), big.mark=",")`** occurrence records representing **`r format(summary_stats$n_species, big.mark=",")`** species from **`r format(summary_stats$n_families, big.mark=",")`** families across **`r format(summary_stats$n_classes, big.mark=",")`** classes. This represents a substantial biodiversity knowledge base, though as we show in subsequent analyses, it exhibits significant quality issues and systematic biases that must be considered when using these data.
 
 ```{r data-summary-table}
 # Create summary table
@@ -188,17 +266,23 @@ The data cleaning process consisted of seven major filtering steps:
 
 ### CoordinateCleaner Tests
 
-The CoordinateCleaner package [@zizka2019] was used to flag potentially problematic coordinates through seven independent tests:
+The CoordinateCleaner package [@zizka2019] implements automated tests to identify common georeferencing errors in biodiversity data. These tests are based on patterns observed in large-scale data quality assessments and address specific, known sources of coordinate errors. We applied seven independent tests:
 
-- **Capitals:** Coordinates within 10 km of country/province capitals (potential administrative centroid errors)
-- **Centroids:** Coordinates within 5 km of country/province centroids (potential georeferencing errors)
-- **Equal Coordinates:** Records with identical latitude and longitude values (invalid coordinates)
-- **GBIF Headquarters:** Coordinates matching the location of GBIF headquarters in Copenhagen
-- **Zeros:** Coordinates at (0°, 0°) or near the equator/prime meridian intersection
-- **Urban Areas:** Coordinates in major urban centers (potential collection/herbarium locations rather than occurrence sites)
-- **Outliers:** Statistical outliers based on species distribution patterns (potential misidentifications or georeferencing errors)
+- **Capitals Test:** Identifies coordinates within 10 km of country or province capitals. Records may be assigned to capital cities when only administrative-level locality information is available (e.g., "Kenya" geocoded to Nairobi coordinates). Such records have high uncertainty and may not represent actual occurrence locations.
 
-Records flagged by any CoordinateCleaner test were removed from the final dataset. Each test was run independently to quantify the prevalence of each specific issue.
+- **Centroids Test:** Flags coordinates within 5 km of country or province geographic centroids. Similar to capitals, these may result from automated geocoding that assigns centroid coordinates when precise locations are unavailable. These are particularly problematic as they appear valid but don't represent real sampling locations.
+
+- **Equal Coordinates Test:** Detects records where latitude equals longitude (e.g., -1.234, -1.234). This pattern is physically possible but statistically unlikely and usually indicates data entry errors such as accidentally copying the same value to both coordinate fields.
+
+- **GBIF Headquarters Test:** Identifies coordinates matching GBIF's headquarters in Copenhagen, Denmark. These obvious errors occur when default coordinates are not replaced during data entry or when specimen metadata is confused with institutional location.
+
+- **Zeros Test:** Flags coordinates at or very near (0°, 0°) in the Atlantic Ocean. True occurrences at this location are rare for terrestrial/freshwater species; most represent null or missing coordinates that were incorrectly assigned default values of zero.
+
+- **Urban Areas Test:** Identifies coordinates in major urban centers that may represent collection storage locations (museums, herbaria, universities) rather than where specimens were actually collected. This is particularly relevant for historical collections where only institutional location was recorded.
+
+- **Outliers Test:** Uses statistical methods to detect coordinates that are geographically distant from other records of the same species. The test employs a quantile-based approach, flagging records in the outer 5% of distance distributions for species with sufficient records (≥10). Outliers may indicate misidentifications, transcription errors (e.g., coordinate decimal place errors), or valid range extensions requiring verification.
+
+**Important Note:** Each test is independent, so a single record can be flagged by multiple tests. The final quality metric counts unique records flagged by ANY test, not the sum of individual test flags. Records flagged by any test were removed from the final dataset to ensure high coordinate quality, though researchers with different requirements could apply less stringent criteria.
 
 ### Quality Metrics
 
@@ -219,19 +303,47 @@ moran_results <- spatial_summary$moran_results
 env_bias <- spatial_summary$env_bias_summary
 ```
 
-We assessed spatial bias using a hexagonal grid with ~10 km resolution. For each grid cell, we calculated:
+Spatial bias occurs when sampling effort is unevenly distributed across geographic space, typically concentrated in accessible areas near roads, cities, and research stations. We assessed spatial patterns using multiple complementary approaches:
 
-- Number of occurrence records
-- Species richness
-- Sampling completeness
+### Grid-Based Analysis
 
-Spatial autocorrelation was tested using Moran's I [@moran1950]. We compared sampled versus available environmental space using Kolmogorov-Smirnov tests for elevation, temperature, and precipitation [@blonder2014].
+We overlaid Kenya with a hexagonal grid at ~10 km resolution (approximately 100 km² per cell). Hexagonal grids are preferred over square grids because they:
+- Have equal distances between centroids of neighboring cells
+- Better approximate circular neighborhoods
+- Reduce edge effects in spatial analyses
+- Provide better tessellation for mapping
 
-Environmental data were obtained from:
+For each grid cell, we calculated:
 
-- **Elevation:** SRTM 30-arc second data
-- **Climate:** WorldClim bioclimatic variables
-- **Administrative boundaries:** GADM database
+- **Number of occurrence records**: Raw sampling effort indicator
+- **Species richness**: Number of unique species observed
+- **Sampling completeness**: Estimated proportion of species actually present that have been detected, accounting for detection probability
+
+These metrics allow us to distinguish between cells with low richness due to poor sampling (few records, low completeness) versus genuinely low biodiversity (many records, high completeness but few species).
+
+### Spatial Autocorrelation
+
+We tested for spatial autocorrelation using Moran's I [@moran1950], which quantifies whether nearby locations have similar sampling effort (positive autocorrelation), different sampling effort (negative autocorrelation), or independent sampling effort (no autocorrelation).
+
+**Interpretation**: Moran's I ranges from -1 to +1:
+- **I ≈ +1**: Strong positive autocorrelation (nearby cells have similar sampling effort) - indicates clustered sampling
+- **I ≈ 0**: No spatial autocorrelation - indicates random or evenly distributed sampling
+- **I ≈ -1**: Negative autocorrelation (nearby cells have dissimilar effort) - rare in observational data
+
+Significant positive autocorrelation suggests non-random, clustered sampling patterns where researchers repeatedly visit the same regions while leaving other areas undersampled. This is the most common pattern in biodiversity data due to accessibility constraints and concentration of research activity near institutions.
+
+### Environmental Bias
+
+Beyond geographic space, we assessed whether sampling is representative of Kenya's environmental diversity. We compared the environmental conditions at sampled locations versus those available across all of Kenya using Kolmogorov-Smirnov (K-S) two-sample tests [@blonder2014].
+
+**Environmental variables tested:**
+- **Elevation**: SRTM 30-arc second digital elevation model (~1 km resolution)
+- **Mean Annual Temperature**: WorldClim BIO1 (°C × 10)
+- **Annual Precipitation**: WorldClim BIO12 (mm)
+
+The K-S test compares cumulative distribution functions and returns a D-statistic (maximum difference between distributions) and p-value. Significant differences (p < 0.05) indicate environmental bias - certain environmental conditions are over- or under-sampled relative to their availability.
+
+**Why this matters**: If sampling is biased toward certain environments (e.g., mid-elevation forests near cities), biodiversity patterns and species distribution models may not generalize well to under-sampled environments (e.g., arid lowlands or high-elevation areas).
 
 ## Temporal Bias Assessment
 
@@ -242,13 +354,44 @@ trend_tests <- temporal_summary$trend_tests
 gap_summary <- temporal_summary$gap_summary
 ```
 
-Temporal patterns were assessed by:
+Temporal bias refers to uneven distribution of sampling effort over time. This can confound analyses of biodiversity change, species trends, and phenology. We assessed temporal patterns using multiple approaches:
 
-- Aggregating records by year
-- Mann-Kendall trend tests [@mann1945; @kendall1975]
-- Calculation of temporal completeness
-- Identification of temporal gaps
-- Seasonal pattern analysis
+### Temporal Trends
+
+We aggregated records by year and tested for temporal trends using the Mann-Kendall test [@mann1945; @kendall1975], a non-parametric test that:
+- **Does not assume linear trends**: Detects monotonic (consistently increasing or decreasing) patterns
+- **Robust to outliers**: Not sensitive to extreme values in specific years
+- **Handles missing data**: Works with gaps in the time series
+- **Provides tau statistic**: Ranges from -1 (perfect decreasing trend) to +1 (perfect increasing trend)
+
+We applied the test separately to:
+- **Number of records per year**: Overall sampling effort trend
+- **Number of species per year**: Taxonomic coverage trend
+
+**Interpretation**: Increasing trends are common in GBIF data due to:
+- Digitization of historical museum collections (making old data accessible)
+- Growth of citizen science platforms (iNaturalist, eBird)
+- Improved data sharing infrastructure
+- Increased research activity
+
+Strong temporal trends can confound analyses of genuine biodiversity change (e.g., distinguishing increased sampling from genuine species range expansions).
+
+### Temporal Completeness
+
+We quantified temporal completeness as the proportion of years within the study period (1950-present) that contain at least one record. We also calculated:
+
+- **Years with data**: Number of years containing records
+- **Years without data**: Temporal gaps
+- **Coefficient of variation (CV)**: Standard deviation / mean of annual record counts, measuring inter-annual variability
+
+**Why this matters**:
+- Temporal gaps prevent continuous time series analysis
+- High CV indicates sporadic sampling that may miss important biodiversity events
+- Uneven temporal coverage complicates trend detection and change attribution
+
+### Seasonal Patterns
+
+We analyzed the distribution of records across months to identify potential seasonal sampling biases. Many groups are preferentially sampled during specific seasons (e.g., birds during breeding season, insects during summer), which can affect phenological analyses and detectability estimates.
 
 ## Taxonomic Bias Assessment
 
@@ -258,13 +401,45 @@ class_summary <- readRDS(file.path(data_outputs, "class_summary.rds"))
 rarity_summary <- readRDS(file.path(data_outputs, "rarity_summary.rds"))
 ```
 
-Taxonomic bias was quantified using:
+Taxonomic bias occurs when certain taxonomic groups are disproportionately sampled compared to their true diversity. This is one of the most pervasive biases in biodiversity data, driven by:
+- **Human preferences**: Charismatic megafauna (birds, mammals) attract more attention than invertebrates
+- **Economic importance**: Agricultural pests/beneficials, disease vectors, and commercial species are well-studied
+- **Taxonomic expertise**: Groups with active expert communities and good identification resources are better sampled
+- **Detection probability**: Large, conspicuous species are more likely to be observed and identified
+- **Accessibility**: Some groups require specialized sampling equipment or techniques
 
-- Hierarchical taxonomic summaries
-- Gini coefficients [@gini1912]
-- Simpson's and Shannon's diversity indices [@simpson1949; @shannon1948]
-- Species accumulation curves
-- Rarity analyses
+We quantified taxonomic bias using multiple complementary metrics:
+
+### Inequality Metrics
+
+- **Gini Coefficient** [@gini1912]: A measure of inequality borrowed from economics, ranging from 0 (perfect equality - all taxa have equal records) to 1 (perfect inequality - one taxon has all records). Values > 0.6 indicate high inequality. The Gini coefficient summarizes the Lorenz curve, which plots cumulative proportion of records against cumulative proportion of taxa.
+
+### Diversity Indices
+
+- **Simpson's Diversity Index** [@simpson1949]: Probability that two randomly selected records belong to different taxa. Higher values indicate greater evenness.
+- **Shannon's Diversity Index** [@shannon1948]: Entropy-based measure incorporating both richness (number of taxa) and evenness (distribution of records among taxa). Higher values indicate more diverse, even communities.
+
+These indices help distinguish between high richness with uneven sampling (few taxa dominate records) versus balanced sampling across taxa.
+
+### Rarity Analysis
+
+We classified species by occurrence frequency:
+- **Singletons**: Species with exactly 1 record (rarity class 1)
+- **Doubletons**: Species with exactly 2 records (rarity class 2)
+- **Very rare**: 3-5 records
+- **Rare**: 6-10 records
+- **Uncommon**: 11-50 records
+- **Common**: 51+ records
+
+High proportions of singleton/rare species may indicate:
+- True rarity (genuinely rare species)
+- Undersampling (species present but rarely detected)
+- Identification errors (misidentifications creating spurious rare species)
+- Taxonomic uncertainties (cryptic species, unresolved taxonomy)
+
+### Species Accumulation Curves
+
+We generated species accumulation curves showing cumulative species richness as a function of sampling effort (number of records). Curves approaching asymptotes suggest sampling is relatively complete, while steeply increasing curves indicate ongoing species discovery with additional effort.
 
 ## Statistical Modeling
 
@@ -273,9 +448,13 @@ modeling_summary <- readRDS(file.path(data_outputs, "modeling_summary.rds"))
 model_summaries <- readRDS(file.path(data_outputs, "model_summaries.rds"))
 ```
 
-We used generalized linear models (GLMs) to identify predictors of sampling effort:
+To understand what environmental and geographic factors predict sampling effort, we used generalized linear models (GLMs). This allows us to move beyond description to explanation - identifying where and why sampling is concentrated.
 
-**Count Model:**
+### Model Structure
+
+We fitted two complementary models:
+
+**Count Model** (Negative Binomial GLM):
 $$
 \log(\lambda_i) = \beta_0 + \beta_1 \times \text{elevation}_i + \beta_2 \times \text{temperature}_i + \beta_3 \times \text{precipitation}_i + \\
 \beta_4 \times \text{distance to city}_i + \beta_5 \times \text{distance from equator}_i + \beta_6 \times \text{distance from coast}_i
@@ -283,12 +462,36 @@ $$
 
 where $\lambda_i$ is the expected number of records in grid cell $i$.
 
-**Presence Model:**
+This model predicts how many records we expect in a location based on environmental and accessibility variables. The negative binomial distribution accounts for overdispersion (variance > mean), which is common in ecological count data.
+
+**Presence Model** (Binomial GLM):
 $$
 \text{logit}(p_i) = \beta_0 + \beta_1 \times \text{elevation}_i + \ldots + \beta_6 \times \text{distance from coast}_i
 $$
 
-where $p_i$ is the probability of sampling in grid cell $i$.
+where $p_i$ is the probability that grid cell $i$ contains any records (presence/absence).
+
+This model identifies factors determining whether a location is sampled at all, complementing the count model which focuses on intensity among sampled locations.
+
+### Predictor Variables
+
+- **Elevation**: Altitude in meters; affects accessibility and biodiversity
+- **Temperature**: Mean annual temperature (°C); represents climatic gradient
+- **Precipitation**: Annual precipitation (mm); represents moisture availability
+- **Distance to nearest city**: Proxy for accessibility and human influence
+- **Distance from equator**: Latitude proxy; Kenya spans equatorial to subtropical zones
+- **Distance from coast**: East-west geographic gradient from Indian Ocean to interior
+
+All continuous predictors were scaled (mean-centered and standardized to unit variance) to facilitate coefficient interpretation and comparison.
+
+### Model Interpretation
+
+Positive coefficients (β > 0) indicate increased sampling effort with increasing predictor values. Negative coefficients (β < 0) indicate decreased effort. Statistical significance (p < 0.05) indicates the relationship is unlikely due to chance. The model allows us to:
+
+1. **Identify accessibility bias**: Expect strong negative coefficient for distance to cities
+2. **Detect environmental preferences**: Which habitats/climates are preferred by researchers
+3. **Map sampling bias**: Model residuals show over-sampled (positive) vs under-sampled (negative) areas relative to environmental/geographic expectations
+4. **Guide future sampling**: Target under-sampled regions identified by model predictions
 
 Models were fitted using a `r modeling_summary$model_type` distribution to account for overdispersion (dispersion parameter = `r round(modeling_summary$overdispersion, 2)`).
 
@@ -309,6 +512,8 @@ removal_rate <- quality_metrics$removal_rate
 
 Of the **`r format(n_original, big.mark=",")`** records originally downloaded from GBIF for Kenya, **`r format(n_final, big.mark=",")`** records (`r round(retention_rate, 1)`%) passed all quality filters and were retained in the final cleaned dataset. A total of **`r format(n_removed, big.mark=",")`** records (`r round(removal_rate, 1)`%) were removed due to various quality issues (Figure 2).
 
+**Interpretation**: The `r round(removal_rate, 1)`% removal rate represents a substantial quality filtering effort, reflecting the high prevalence of issues in aggregated biodiversity data. This is comparable to quality filtering rates reported in other regional GBIF assessments (typically 40-95% removal rates depending on quality standards). The high removal rate underscores that GBIF data, while invaluable, require rigorous quality control. Data users must document and report their quality filtering decisions to ensure transparency and enable appropriate interpretation of results. Different applications may require different quality standards - for example, broad-scale macroecological studies might accept higher coordinate uncertainty than fine-scale conservation planning.
+
 ```{r fig-quality-summary, fig.cap="Overall data quality assessment showing the proportion of records retained versus removed after all quality filters."}
 knitr::include_graphics(here("figures", "data_quality_summary_pie.png"))
 ```
@@ -319,7 +524,48 @@ Table 2 presents the detailed breakdown of records removed at each quality filte
 
 ```{r quality-cascade-table}
 # Create formatted quality tracking table
-quality_table <- quality_tracking %>%
+# First, get all non-coordinate steps
+quality_table_base <- quality_tracking %>%
+  filter(step != "Coordinate flags")
+
+# Get the coordinate flags row to use for records_remaining
+coord_flags_row <- quality_tracking %>%
+  filter(step == "Coordinate flags")
+
+# Create individual rows for each coordinate test
+coord_details <- coord_issues %>%
+  filter(records_flagged > 0) %>%
+  arrange(desc(records_flagged)) %>%
+  mutate(
+    step = paste0("  • ", test),
+    description = description,
+    records_removed = records_flagged,
+    # Use the same records_remaining for all (since they're independent tests)
+    records_remaining = coord_flags_row$records_remaining,
+    percent_removed = percent_of_original,
+    cumulative_percent_removed = coord_flags_row$cumulative_percent_removed
+  ) %>%
+  select(step, description, records_removed, records_remaining,
+         percent_removed, cumulative_percent_removed)
+
+# Add a header row for coordinate tests
+coord_header <- tibble(
+  step = "Coordinate flags (details below)",
+  description = paste0("Records flagged by ANY CoordinateCleaner test (",
+                       format(coord_flags_row$records_removed, big.mark = ","),
+                       " unique records)"),
+  records_removed = coord_flags_row$records_removed,
+  records_remaining = coord_flags_row$records_remaining,
+  percent_removed = coord_flags_row$percent_removed,
+  cumulative_percent_removed = coord_flags_row$cumulative_percent_removed
+)
+
+# Combine all rows
+quality_table_expanded <- bind_rows(
+  quality_table_base,
+  coord_header,
+  coord_details
+) %>%
   mutate(
     `Records Removed` = format(records_removed, big.mark = ","),
     `% of Original` = sprintf("%.2f%%", percent_removed),
@@ -335,14 +581,14 @@ quality_table <- quality_tracking %>%
     `Cumulative % Removed`
   )
 
-kable(quality_table,
-      caption = "Detailed breakdown of data quality filtering steps. Each row shows the number and percentage of records removed at each sequential filtering step.",
+kable(quality_table_expanded,
+      caption = "Detailed breakdown of data quality filtering steps. Each row shows the number and percentage of records removed at each sequential filtering step. Coordinate flags are expanded to show individual test results. Note: Individual coordinate tests may overlap (one record can be flagged by multiple tests), so the sum of individual test counts exceeds the unique records removed.",
       booktabs = TRUE,
       align = c("l", "l", "r", "r", "r", "r")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
                 full_width = TRUE,
-                font_size = 11) %>%
-  column_spec(1, bold = TRUE, width = "3cm") %>%
+                font_size = 10) %>%
+  column_spec(1, bold = TRUE, width = "4cm") %>%
   column_spec(2, width = "6cm")
 ```
 
@@ -371,6 +617,8 @@ pct_coord_flagged <- quality_metrics$coordinate_quality$percent_coord_flags
 ```
 
 The seven CoordinateCleaner tests identified a total of **`r format(total_coord_flagged, big.mark=",")`** records with potentially problematic coordinates, representing **`r round(pct_coord_flagged, 1)`%** of records that reached this filtering stage. Table 3 presents the detailed breakdown of coordinate quality issues.
+
+**Interpretation**: The `r round(pct_coord_flagged, 1)`% of records flagged for coordinate quality issues highlights a substantial problem with georeferencing accuracy in the dataset. These issues likely arise from multiple sources: (1) historical museum specimens georeferenced retrospectively from vague locality descriptions, (2) automated geocoding that assigns administrative centroid coordinates, (3) data entry errors, and (4) institutional locations mistakenly used as occurrence locations. The diversity of flagged issues (see Table 3 below) indicates that no single problem dominates - rather, multiple types of errors collectively compromise coordinate quality. Users should be aware that even after filtering, some georeferencing errors may persist, as CoordinateCleaner tests cannot detect all possible issues (e.g., coordinates that are slightly wrong but not statistical outliers).
 
 ```{r coord-issues-table}
 # Create formatted coordinate issues table
