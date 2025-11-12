@@ -48,6 +48,7 @@ kenya_download <- occ_download(
 
 message("Download key: ", kenya_download)
 message("Check download status at: https://www.gbif.org/occurrence/download/", kenya_download)
+options(timeout = 1000000)
 
 # Wait for download to complete
 message("Waiting for download to complete...")
@@ -55,7 +56,6 @@ occ_download_wait(kenya_download, status_ping = 10, curlopts = list(), quiet = F
 
 # Download the data
 message("Downloading data...")
-options(timeout = 1000000)
 kenya_zip <- occ_download_get(kenya_download, path = data_raw, overwrite = TRUE)
 
 # Import data
