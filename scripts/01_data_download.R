@@ -216,7 +216,7 @@ message("  Clean records: ", sum(!flags))
 # Keep only clean records
 kenya_final <- kenya_clean %>%
   filter(coord_clean == TRUE) %>%
-  select(-coord_clean)
+  dplyr::select(-coord_clean)
 
 message("Final dataset: ", nrow(kenya_final), " records")
 
@@ -256,6 +256,11 @@ write_csv(kenya_final, file.path(data_processed, "kenya_gbif_clean.csv"))
 # Save summary statistics
 saveRDS(summary_stats, file.path(data_processed, "summary_stats.rds"))
 write_csv(tax_summary, file.path(data_processed, "taxonomic_summary.csv"))
+
+
+# Import data
+message("Importing data...")
+kenya_raw <- read_rds(here(data_raw, "kenya_gbif_raw.rds"))
 
 # Create metadata file
 metadata <- list(
