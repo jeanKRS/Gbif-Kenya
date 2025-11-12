@@ -22,49 +22,77 @@ data_processed <- here("data", "processed")
 dir.create(data_raw, showWarnings = FALSE, recursive = TRUE)
 dir.create(data_processed, showWarnings = FALSE, recursive = TRUE)
 
-# Set GBIF credentials (set as environment variables) -------------------------
-# Use: usethis::edit_r_environ() to set GBIF_USER, GBIF_PWD, GBIF_EMAIL
+# Check for existing data ------------------------------------------------------
+raw_data_file <- file.path(data_raw, "kenya_gbif_raw.rds")
+processed_data_file <- file.path(data_processed, "kenya_gbif_clean.rds")
 
-# Define download parameters ---------------------------------------------------
-message("Initiating GBIF download for Kenya...")
+# Set force_download to TRUE to force re-download even if data exists
+force_download <- FALSE
 
-# Option 1: Use existing download key if available
-# Uncomment and replace with actual download key if data already downloaded
-download_key <- 0024317-251025141854904 # "YOUR_DOWNLOAD_KEY_HERE"
+if (file.exists(processed_data_file) && !force_download) {
+  message("=== PROCESSED DATA ALREADY EXISTS ===")
+  message("Found existing cleaned data at: ", processed_data_file)
+  message("Skipping download and cleaning steps.")
+  message("To force re-download, set force_download <- TRUE")
+  message("Exiting script.")
+  quit(save = "no")
+}
 
-# Option 2: Request new download (requires GBIF login)
-# Note: This creates a download request. Check status at www.gbif.org
-kenya_download <- occ_download(
-  pred("country", "KE"),
-  pred("hasCoordinate", TRUE),
-  pred("hasGeospatialIssue", FALSE),
-  pred_gte("year", 1950),
-  pred("occurrenceStatus", "PRESENT"),
-  format = "SIMPLE_CSV",
-  user = Sys.getenv("GBIF_USER"),
-  pwd = Sys.getenv("GBIF_PWD"),
-  email = Sys.getenv("GBIF_EMAIL")
-)
+if (file.exists(raw_data_file) && !force_download) {
+  message("=== RAW DATA ALREADY EXISTS ===")
+  message("Found existing raw data at: ", raw_data_file)
+  message("Loading existing raw data instead of downloading...")
+  kenya_raw <- readRDS(raw_data_file)
+  message("Loaded ", nrow(kenya_raw), " records from existing file")
+  message("To force re-download, set force_download <- TRUE")
+} else {
+  # Set GBIF credentials (set as environment variables) -----------------------
+  # Use: usethis::edit_r_environ() to set GBIF_USER, GBIF_PWD, GBIF_EMAIL
 
-message("Download key: ", kenya_download)
-message("Check download status at: https://www.gbif.org/occurrence/download/", kenya_download)
-options(timeout = 1000000)
+  # Define download parameters -------------------------------------------------
+  message("=== INITIATING NEW GBIF DOWNLOAD ===")
+  message("No existing data found. Downloading from GBIF for Kenya...")
 
-# Wait for download to complete
-message("Waiting for download to complete...")
-occ_download_wait(kenya_download, status_ping = 10, curlopts = list(), quiet = FALSE)
+  # Option 1: Use existing download key if available
+  # Uncomment and replace with actual download key if data already downloaded
+  # download_key <- "YOUR_DOWNLOAD_KEY_HERE"
+  # kenya_zip <- occ_download_get(download_key, path = data_raw, overwrite = TRUE)
+  # kenya_raw <- occ_download_import(x = kenya_zip)
 
-# Download the data
-message("Downloading data...")
-kenya_zip <- occ_download_get(kenya_download, path = data_raw, overwrite = TRUE)
+  # Option 2: Request new download (requires GBIF login)
+  # Note: This creates a download request. Check status at www.gbif.org
+  kenya_download <- occ_download(
+    pred("country", "KE"),
+    pred("hasCoordinate", TRUE),
+    pred("hasGeospatialIssue", FALSE),
+    pred_gte("year", 1950),
+    pred("occurrenceStatus", "PRESENT"),
+    format = "SIMPLE_CSV",
+    user = Sys.getenv("GBIF_USER"),
+    pwd = Sys.getenv("GBIF_PWD"),
+    email = Sys.getenv("GBIF_EMAIL")
+  )
 
-# Import data
-message("Importing data...")
-kenya_raw <- occ_download_import(x = kenya_zip)
+  message("Download key: ", kenya_download)
+  message("Check download status at: https://www.gbif.org/occurrence/download/", kenya_download)
+  options(timeout = 1000000)
 
-# Save raw data
-saveRDS(kenya_raw, file.path(data_raw, "kenya_gbif_raw.rds"))
-message("Raw data saved: ", nrow(kenya_raw), " records")
+  # Wait for download to complete
+  message("Waiting for download to complete...")
+  occ_download_wait(kenya_download, status_ping = 10, curlopts = list(), quiet = FALSE)
+
+  # Download the data
+  message("Downloading data...")
+  kenya_zip <- occ_download_get(kenya_download, path = data_raw, overwrite = TRUE)
+
+  # Import data
+  message("Importing data...")
+  kenya_raw <- occ_download_import(x = kenya_zip)
+
+  # Save raw data
+  saveRDS(kenya_raw, file.path(data_raw, "kenya_gbif_raw.rds"))
+  message("Raw data saved: ", nrow(kenya_raw), " records")
+}
 
 # Data cleaning ----------------------------------------------------------------
 message("Cleaning data...")
@@ -257,30 +285,58 @@ write_csv(kenya_final, file.path(data_processed, "kenya_gbif_clean.csv"))
 saveRDS(summary_stats, file.path(data_processed, "summary_stats.rds"))
 write_csv(tax_summary, file.path(data_processed, "taxonomic_summary.csv"))
 
+# Create metadata file ---------------------------------------------------------
+# Check if metadata already exists to preserve original download info
+metadata_file <- file.path(data_processed, "metadata.rds")
 
-# Import data
-message("Importing data...")
-kenya_raw <- read_rds(here(data_raw, "kenya_gbif_raw.rds"))
+if (file.exists(metadata_file)) {
+  message("Loading existing metadata...")
+  metadata <- readRDS(metadata_file)
+  # Update clean records count in case reprocessing happened
+  metadata$clean_records <- nrow(kenya_final)
+  metadata$last_processed <- Sys.Date()
+} else {
+  # Create new metadata
+  # kenya_download will exist if we did a new download
+  if (exists("kenya_download")) {
+    download_key <- kenya_download
+    download_doi <- paste0("https://doi.org/10.15468/dl.", kenya_download)
+  } else {
+    # If loaded from existing raw data, try to get info from file
+    download_key <- "Unknown (loaded from existing file)"
+    download_doi <- "Unknown (loaded from existing file)"
+  }
 
-# Create metadata file
-metadata <- list(
-  download_key = kenya_download,
-  download_date = Sys.Date(),
-  gbif_doi = paste0("https://doi.org/10.15468/dl.", kenya_download),
-  raw_records = nrow(kenya_raw),
-  clean_records = nrow(kenya_final),
-  cleaning_steps = c(
-    "Removed records with missing coordinates",
-    "Removed records with uncertainty > 10km",
-    "Removed fossil and living specimens",
-    "Removed records without species-level ID",
-    "Removed records outside 1950-present",
-    "Removed duplicate records",
-    "Applied CoordinateCleaner filters"
+  # Get original record count from raw data file
+  if (file.exists(raw_data_file)) {
+    kenya_raw_meta <- readRDS(raw_data_file)
+    raw_count <- nrow(kenya_raw_meta)
+    rm(kenya_raw_meta)
+  } else if (exists("kenya_raw")) {
+    raw_count <- nrow(kenya_raw)
+  } else {
+    raw_count <- NA
+  }
+
+  metadata <- list(
+    download_key = download_key,
+    download_date = Sys.Date(),
+    gbif_doi = download_doi,
+    raw_records = raw_count,
+    clean_records = nrow(kenya_final),
+    cleaning_steps = c(
+      "Removed records with missing coordinates",
+      "Removed records with uncertainty > 10km",
+      "Removed fossil and living specimens",
+      "Removed records without species-level ID",
+      "Removed records outside 1950-present",
+      "Removed duplicate records",
+      "Applied CoordinateCleaner filters"
+    )
   )
-)
+}
 
-saveRDS(metadata, file.path(data_processed, "metadata.rds"))
+saveRDS(metadata, metadata_file)
 
 message("\n=== Data download and cleaning complete ===")
 message("Clean data saved to: ", file.path(data_processed, "kenya_gbif_clean.rds"))
