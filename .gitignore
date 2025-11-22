@@ -16,6 +16,15 @@ data/outputs/*
 !data/processed/.gitkeep
 !data/outputs/.gitkeep
 
+# Results folder (cached analysis outputs)
+results/*/*.rds
+results/*/*.csv
+results/*/*.rda
+
+# But keep README and directory structure
+!results/README.md
+!results/*/.gitkeep
+
 # Figure files (regenerated)
 figures/*.png
 figures/*.pdf

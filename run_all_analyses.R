@@ -30,6 +30,7 @@ library(tidyverse)
 
 # Source utility functions
 source(here("R", "utils.R"))
+source(here("scripts", "results_config.R"))
 
 # Create log file
 log_file <- here("analysis_log.txt")
@@ -42,6 +43,7 @@ cat("R version:", R.version.string, "\n\n")
 # Define analysis scripts -----------------------------------------------------
 scripts <- c(
   "01_data_download.R",
+  "01b_data_quality_assessment.R",
   "02_spatial_bias.R",
   "03_temporal_bias.R",
   "04_taxonomic_bias.R",
@@ -50,10 +52,21 @@ scripts <- c(
 
 script_names <- c(
   "Data Download and Cleaning",
+  "Data Quality Assessment",
   "Spatial Bias Assessment",
   "Temporal Bias Assessment",
   "Taxonomic Bias Assessment",
   "Statistical Modeling"
+)
+
+# Define results directories and required files
+results_configs <- list(
+  list(dir = NULL, files = NULL),  # 01_data_download has no results folder yet
+  list(dir = "data_quality", files = DATA_QUALITY_FILES),
+  list(dir = "spatial_bias", files = SPATIAL_BIAS_FILES),
+  list(dir = "temporal_bias", files = TEMPORAL_BIAS_FILES),
+  list(dir = "taxonomic_bias", files = TAXONOMIC_BIAS_FILES),
+  list(dir = "statistical_models", files = STATISTICAL_MODELS_FILES)
 )
 
 # Run analysis pipeline -------------------------------------------------------
@@ -80,33 +93,51 @@ for (i in seq_along(scripts)) {
     next
   }
 
-  # Run script with error handling
-  start_time <- Sys.time()
+  # Check if results already exist for this analysis
+  config <- results_configs[[i]]
+  skip_analysis <- FALSE
 
-  tryCatch({
-    source(script_path, echo = FALSE, verbose = FALSE)
-    success[i] <- TRUE
-    errors[[i]] <- NA
-  }, error = function(e) {
-    cat("\nERROR in", scripts[i], ":\n")
-    cat(as.character(e), "\n")
-    success[i] <<- FALSE
-    errors[[i]] <<- as.character(e)
-  }, warning = function(w) {
-    cat("\nWARNING in", scripts[i], ":\n")
-    cat(as.character(w), "\n")
-  })
+  if (!is.null(config$dir) && !is.null(config$files)) {
+    results_path <- here("results", config$dir)
+    if (check_results_exist(results_path, config$files)) {
+      cat("✓ All required results already exist for", script_names[i], "\n")
+      cat("  Skipping analysis. To re-run, delete files in:", results_path, "\n")
+      skip_analysis <- TRUE
+      success[i] <- TRUE
+      errors[[i]] <- NA
+      timings[i] <- 0
+    }
+  }
 
-  end_time <- Sys.time()
-  timings[i] <- as.numeric(difftime(end_time, start_time, units = "mins"))
+  if (!skip_analysis) {
+    # Run script with error handling
+    start_time <- Sys.time()
 
-  cat("\nCompleted at:", as.character(end_time), "\n")
-  cat("Time elapsed:", round(timings[i], 2), "minutes\n")
+    tryCatch({
+      source(script_path, echo = FALSE, verbose = FALSE)
+      success[i] <- TRUE
+      errors[[i]] <- NA
+    }, error = function(e) {
+      cat("\nERROR in", scripts[i], ":\n")
+      cat(as.character(e), "\n")
+      success[i] <<- FALSE
+      errors[[i]] <<- as.character(e)
+    }, warning = function(w) {
+      cat("\nWARNING in", scripts[i], ":\n")
+      cat(as.character(w), "\n")
+    })
 
-  if (success[i]) {
-    cat("Status: SUCCESS\n")
-  } else {
-    cat("Status: FAILED\n")
+    end_time <- Sys.time()
+    timings[i] <- as.numeric(difftime(end_time, start_time, units = "mins"))
+
+    cat("\nCompleted at:", as.character(end_time), "\n")
+    cat("Time elapsed:", round(timings[i], 2), "minutes\n")
+
+    if (success[i]) {
+      cat("Status: SUCCESS\n")
+    } else {
+      cat("Status: FAILED\n")
+    }
   }
 }
 

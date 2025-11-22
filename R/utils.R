@@ -351,4 +351,115 @@ temporal_metrics <- function(years) {
   return(metrics)
 }
 
+#' Check if analysis results exist
+#'
+#' @param results_dir character, path to results directory
+#' @param required_files character vector, list of required files
+#' @return logical, TRUE if all required files exist
+check_results_exist <- function(results_dir, required_files) {
+
+  if (!dir.exists(results_dir)) {
+    return(FALSE)
+  }
+
+  # Check if all required files exist
+  file_paths <- file.path(results_dir, required_files)
+  all_exist <- all(file.exists(file_paths))
+
+  if (all_exist) {
+    message(sprintf("✓ All required results found in %s", results_dir))
+    message(sprintf("  - %d files verified", length(required_files)))
+  } else {
+    missing <- required_files[!file.exists(file_paths)]
+    message(sprintf("⚠ Missing %d files in %s:", length(missing), results_dir))
+    for (f in missing) {
+      message(sprintf("  - %s", f))
+    }
+  }
+
+  return(all_exist)
+}
+
+
+#' Skip analysis if results exist
+#'
+#' @param analysis_name character, name of the analysis
+#' @param results_dir character, path to results directory
+#' @param required_files character vector, list of required files
+#' @param force logical, force re-run even if results exist
+#' @return logical, TRUE if analysis should be skipped
+skip_if_complete <- function(analysis_name, results_dir, required_files, force = FALSE) {
+
+  if (force) {
+    message(sprintf("\n=== Running %s (forced) ===\n", analysis_name))
+    return(FALSE)
+  }
+
+  exists <- check_results_exist(results_dir, required_files)
+
+  if (exists) {
+    message(sprintf("\n=== Skipping %s (results already exist) ===\n", analysis_name))
+    message(sprintf("To re-run, delete files in: %s\n", results_dir))
+    return(TRUE)
+  } else {
+    message(sprintf("\n=== Running %s ===\n", analysis_name))
+    return(FALSE)
+  }
+}
+
+#' Save to results folder with backward compatibility
+#'
+#' @param object R object to save
+#' @param filename character, filename (not full path)
+#' @param results_subdir character, subdirectory in results (e.g., "spatial_bias")
+#' @param also_save_to character vector, additional paths to save to for compatibility
+#' @return NULL (invisible)
+save_results <- function(object, filename, results_subdir, also_save_to = NULL) {
+
+  # Primary save location
+  results_path <- here::here("results", results_subdir, filename)
+  saveRDS(object, results_path)
+
+  # Backward compatibility saves
+  if (!is.null(also_save_to)) {
+    for (path in also_save_to) {
+      compat_path <- file.path(path, filename)
+      saveRDS(object, compat_path)
+    }
+  }
+
+  message(sprintf("✓ Saved: %s", results_path))
+  invisible(NULL)
+}
+
+#' Copy results from data/outputs to results folder
+#'
+#' @param files character vector, filenames to copy
+#' @param from_dir character, source directory (default: data/outputs)
+#' @param to_subdir character, results subdirectory (e.g., "spatial_bias")
+#' @return NULL (invisible)
+copy_to_results <- function(files, from_dir = NULL, to_subdir) {
+
+  if (is.null(from_dir)) {
+    from_dir <- here::here("data", "outputs")
+  }
+
+  to_dir <- here::here("results", to_subdir)
+  dir.create(to_dir, showWarnings = FALSE, recursive = TRUE)
+
+  copied <- 0
+  for (file in files) {
+    from_path <- file.path(from_dir, file)
+    to_path <- file.path(to_dir, file)
+
+    if (file.exists(from_path)) {
+      file.copy(from_path, to_path, overwrite = TRUE)
+      copied <- copied + 1
+    }
+  }
+
+  message(sprintf("✓ Copied %d/%d files to results/%s/", copied, length(files), to_subdir))
+  invisible(NULL)
+}
+
 message("Utility functions loaded successfully")

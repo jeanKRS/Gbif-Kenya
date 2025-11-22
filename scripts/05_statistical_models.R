@@ -866,3 +866,20 @@ saveRDS(glm_binomial, file.path(data_outputs, "final_presence_model.rds"))
 message("\n=== Statistical modeling complete ===")
 message("Results saved to: ", data_outputs)
 message("Figures saved to: ", figures_dir)
+
+# Copy results to results folder -----------------------------------------------
+source(here("scripts", "results_config.R"))
+
+# Copy all required files
+copy_to_results(STATISTICAL_MODELS_FILES, from_dir = data_outputs, to_subdir = "statistical_models")
+
+# Also copy optional files if they exist
+for (optional_file in STATISTICAL_MODELS_OPTIONAL) {
+  optional_path <- file.path(data_outputs, optional_file)
+  if (file.exists(optional_path)) {
+    file.copy(optional_path,
+             file.path(here("results", "statistical_models"), optional_file),
+             overwrite = TRUE)
+    message(sprintf("✓ Copied optional file: %s", optional_file))
+  }
+}

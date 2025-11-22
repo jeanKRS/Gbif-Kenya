@@ -24,10 +24,14 @@ suppressPackageStartupMessages({
 
 # Setup paths ------------------------------------------------------------------
 data_processed <- here("data", "processed")
-data_outputs <- here("data", "outputs")
+data_outputs <- here("data", "outputs")  # Keep for backward compatibility
 figures_dir <- here("figures")
+results_dir <- here("results", "spatial_bias")
+
+# Create directories
 dir.create(data_outputs, showWarnings = FALSE, recursive = TRUE)
 dir.create(figures_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Load cleaned data ------------------------------------------------------------
 message("Loading cleaned GBIF data...")
@@ -608,4 +612,8 @@ saveRDS(spatial_summary, file.path(data_outputs, "spatial_bias_summary.rds"))
 message("\n=== Spatial bias assessment complete ===")
 message("Results saved to: ", data_outputs)
 message("Figures saved to: ", figures_dir)
+
+# Copy results to results folder -----------------------------------------------
+source(here("scripts", "results_config.R"))
+copy_to_results(SPATIAL_BIAS_FILES, from_dir = data_outputs, to_subdir = "spatial_bias")
 

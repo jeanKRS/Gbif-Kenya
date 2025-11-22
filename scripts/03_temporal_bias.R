@@ -466,3 +466,7 @@ saveRDS(temporal_bias_summary, file.path(data_outputs, "temporal_bias_summary.rd
 message("\n=== Temporal bias assessment complete ===")
 message("Results saved to: ", data_outputs)
 message("Figures saved to: ", figures_dir)
+
+# Copy results to results folder -----------------------------------------------
+source(here("scripts", "results_config.R"))
+copy_to_results(TEMPORAL_BIAS_FILES, from_dir = data_outputs, to_subdir = "temporal_bias")

@@ -21,26 +21,30 @@ suppressPackageStartupMessages({
   library(knitr)
 })
 
+# Source utility functions
+source(here("R", "utils.R"))
+
 # Setup paths ------------------------------------------------------------------
 data_raw <- here("data", "raw")
 data_processed <- here("data", "processed")
-data_outputs <- here("data", "outputs")
+data_outputs <- here("data", "outputs")  # Keep for backward compatibility
 figures_dir <- here("figures")
+results_dir <- here("results", "data_quality")
 
 # Create directories if needed
 dir.create(data_outputs, showWarnings = FALSE, recursive = TRUE)
 dir.create(figures_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
-# Check if data quality assessment already exists ------------------------------
-quality_file <- file.path(data_outputs, "data_quality_assessment.rds")
+# Define required output files ------------------------------------------------
+required_files <- c(
+  "data_quality_assessment.rds",
+  "data_quality_tracking.csv",
+  "coordinate_issues_summary.csv"
+)
 
-if (file.exists(quality_file)) {
-  message("Data quality assessment already exists. Loading saved results...")
-  quality_results <- readRDS(quality_file)
-  message("To regenerate, delete: ", quality_file)
-} else {
-
-  message("=== Comprehensive Data Quality Assessment ===\n")
+# Check if analysis should be run ----------------------------------------------
+if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
 
   # Load data ------------------------------------------------------------------
   message("Loading data...")
@@ -445,12 +449,23 @@ if (file.exists(quality_file)) {
   )
 
   # Save results ---------------------------------------------------------------
-  saveRDS(quality_results, quality_file)
+  saveRDS(quality_results, file.path(results_dir, "data_quality_assessment.rds"))
+  write_csv(quality_tracking, file.path(results_dir, "data_quality_tracking.csv"))
+  write_csv(coord_issues_df, file.path(results_dir, "coordinate_issues_summary.csv"))
+
+  # Also save to old location for backward compatibility
+  saveRDS(quality_results, file.path(data_outputs, "data_quality_assessment.rds"))
   write_csv(quality_tracking, file.path(data_outputs, "data_quality_tracking.csv"))
   write_csv(coord_issues_df, file.path(data_outputs, "coordinate_issues_summary.csv"))
 
   message("\n=== Data quality assessment complete ===")
-  message("Results saved to: ", quality_file)
+  message("Results saved to: ", results_dir)
+}
+
+# Load results for visualization -----------------------------------------------
+if (!exists("quality_results")) {
+  message("Loading saved data quality results...")
+  quality_results <- readRDS(file.path(results_dir, "data_quality_assessment.rds"))
 }
 
 # Create visualizations --------------------------------------------------------
