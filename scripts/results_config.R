@@ -7,7 +7,8 @@
 DATA_QUALITY_FILES <- c(
   "data_quality_assessment.rds",
   "data_quality_tracking.csv",
-  "coordinate_issues_summary.csv"
+  "coordinate_issues_summary.csv",
+  "kenya_gbif_flagged.rds"  # Flagged data for downstream analyses
 )
 
 # Spatial Bias Analysis --------------------------------------------------------

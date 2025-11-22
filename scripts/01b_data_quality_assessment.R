@@ -1,13 +1,11 @@
 # ==============================================================================
 # Script: 01b_data_quality_assessment.R
-# Purpose: Comprehensive data quality assessment and quantification
+# Purpose: Comprehensive data quality assessment with flagging (not filtering)
 # Author: Automated Research Pipeline
-# Date: 2025-11-11
+# Date: 2025-11-22
 # ==============================================================================
-# This script performs detailed tracking and quantification of all data quality
-# issues identified during the GBIF data cleaning process, documenting the
-# number and percentage of records affected by each issue relative to the
-# original dataset.
+# This script identifies and FLAGS all data quality issues without removing
+# records. Each downstream analysis can then filter based on relevant flags.
 # ==============================================================================
 
 # Load required packages -------------------------------------------------------
@@ -40,77 +38,70 @@ dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 required_files <- c(
   "data_quality_assessment.rds",
   "data_quality_tracking.csv",
-  "coordinate_issues_summary.csv"
+  "coordinate_issues_summary.csv",
+  "kenya_gbif_flagged.rds"  # New: data with quality flags
 )
 
 # Check if analysis should be run ----------------------------------------------
 if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
 
+  message("=== Comprehensive Data Quality Assessment (Flagging Mode) ===\n")
+
   # Load data ------------------------------------------------------------------
   message("Loading data...")
   kenya_raw <- readRDS(file.path(data_raw, "kenya_gbif_raw.rds"))
-  kenya_final <- readRDS(file.path(data_processed, "kenya_gbif_clean.rds"))
-  metadata <- readRDS(file.path(data_processed, "metadata.rds"))
 
-  # Initialize tracking data frame ---------------------------------------------
+  # Initialize tracking
   n_original <- nrow(kenya_raw)
   message("Original dataset: ", format(n_original, big.mark = ","), " records\n")
 
   # Create quality tracking data frame
   quality_tracking <- tibble(
-    step = character(),
+    issue = character(),
     description = character(),
-    records_removed = numeric(),
-    records_remaining = numeric(),
-    percent_removed = numeric(),
-    cumulative_percent_removed = numeric()
+    records_flagged = numeric(),
+    percent_flagged = numeric()
   )
 
   # Function to add tracking step
-  add_step <- function(step_name, description, data_before, data_after) {
-    n_before <- nrow(data_before)
-    n_after <- nrow(data_after)
-    n_removed <- n_before - n_after
-    pct_removed <- (n_removed / n_original) * 100
-    cumulative_removed <- ((n_original - n_after) / n_original) * 100
+  add_flag_tracking <- function(issue_name, description, flag_vector) {
+    n_flagged <- sum(flag_vector, na.rm = TRUE)
+    pct_flagged <- (n_flagged / n_original) * 100
 
     quality_tracking <<- quality_tracking %>%
       add_row(
-        step = step_name,
+        issue = issue_name,
         description = description,
-        records_removed = n_removed,
-        records_remaining = n_after,
-        percent_removed = pct_removed,
-        cumulative_percent_removed = cumulative_removed
+        records_flagged = n_flagged,
+        percent_flagged = pct_flagged
       )
 
-    if (n_removed > 0) {
-      message(sprintf("  %s: %s records removed (%.2f%%)",
-                      step_name,
-                      format(n_removed, big.mark = ","),
-                      pct_removed))
+    if (n_flagged > 0) {
+      message(sprintf("  %s: %s records flagged (%.2f%%)",
+                      issue_name,
+                      format(n_flagged, big.mark = ","),
+                      pct_flagged))
     }
 
-    return(data_after)
+    return(flag_vector)
   }
 
-  # Step 1: Missing coordinates ------------------------------------------------
-  message("\n1. Checking for missing coordinates...")
-  kenya_step1 <- kenya_raw %>%
-    filter(!is.na(decimalLongitude), !is.na(decimalLatitude))
+  # Start with all data, add flag columns ---------------------------------------
+  kenya_flagged <- kenya_raw
 
-  kenya_raw <- add_step(
+  # Flag 1: Missing coordinates ------------------------------------------------
+  message("\n1. Flagging missing coordinates...")
+  kenya_flagged$flag_missing_coords <- add_flag_tracking(
     "Missing coordinates",
     "Records without decimal latitude or longitude",
-    kenya_raw,
-    kenya_step1
+    is.na(kenya_raw$decimalLongitude) | is.na(kenya_raw$decimalLatitude)
   )
 
-  # Step 2: High coordinate uncertainty ----------------------------------------
-  message("\n2. Checking coordinate uncertainty...")
+  # Flag 2: High coordinate uncertainty ----------------------------------------
+  message("\n2. Flagging coordinate uncertainty...")
 
   # Analyze uncertainty distribution
-  uncertainty_summary <- kenya_step1 %>%
+  uncertainty_summary <- kenya_raw %>%
     filter(!is.na(coordinateUncertaintyInMeters)) %>%
     summarise(
       n_with_uncertainty = n(),
@@ -125,39 +116,32 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
       n_gt_50km = sum(coordinateUncertaintyInMeters > 50000)
     )
 
-  kenya_step2 <- kenya_step1 %>%
-    filter(coordinateUncertaintyInMeters < 10000 | is.na(coordinateUncertaintyInMeters))
-
-  kenya_step1 <- add_step(
+  kenya_flagged$flag_high_uncertainty <- add_flag_tracking(
     "High uncertainty",
     "Coordinate uncertainty > 10 km",
-    kenya_step1,
-    kenya_step2
+    !is.na(kenya_raw$coordinateUncertaintyInMeters) &
+      kenya_raw$coordinateUncertaintyInMeters >= 10000
   )
 
-  # Step 3: Basis of record ----------------------------------------------------
-  message("\n3. Checking basis of record...")
+  # Flag 3: Basis of record ----------------------------------------------------
+  message("\n3. Flagging basis of record...")
 
   # Summarize basis of record
-  basis_summary <- kenya_step2 %>%
+  basis_summary <- kenya_raw %>%
     count(basisOfRecord, sort = TRUE) %>%
-    mutate(percent = (n / nrow(kenya_step2)) * 100)
+    mutate(percent = (n / n_original) * 100)
 
-  kenya_step3 <- kenya_step2 %>%
-    filter(!basisOfRecord %in% c("FOSSIL_SPECIMEN", "LIVING_SPECIMEN"))
-
-  kenya_step2 <- add_step(
+  kenya_flagged$flag_inappropriate_basis <- add_flag_tracking(
     "Inappropriate basis",
     "Fossil or living specimens (not natural occurrences)",
-    kenya_step2,
-    kenya_step3
+    kenya_raw$basisOfRecord %in% c("FOSSIL_SPECIMEN", "LIVING_SPECIMEN")
   )
 
-  # Step 4: Species-level identification --------------------------------------
-  message("\n4. Checking taxonomic identification...")
+  # Flag 4: Species-level identification --------------------------------------
+  message("\n4. Flagging taxonomic identification...")
 
   # Analyze taxonomic completeness
-  tax_completeness <- kenya_step3 %>%
+  tax_completeness <- kenya_raw %>%
     summarise(
       n_with_species = sum(!is.na(species) & species != ""),
       n_with_genus = sum(!is.na(genus) & genus != ""),
@@ -167,22 +151,19 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
       n_with_phylum = sum(!is.na(phylum) & phylum != ""),
       n_with_kingdom = sum(!is.na(kingdom) & kingdom != "")
     ) %>%
-    mutate(across(everything(), ~ (.x / nrow(kenya_step3)) * 100, .names = "pct_{.col}"))
+    mutate(across(everything(), ~ (.x / n_original) * 100, .names = "pct_{.col}"))
 
-  kenya_step4 <- kenya_step3 %>%
-    filter(!is.na(species), species != "")
-
-  kenya_step3 <- add_step(
+  kenya_flagged$flag_missing_species <- add_flag_tracking(
     "Missing species ID",
     "Records without species-level identification",
-    kenya_step3,
-    kenya_step4
+    is.na(kenya_raw$species) | kenya_raw$species == ""
   )
 
-  # Step 5: Date parsing and validation ----------------------------------------
-  message("\n5. Parsing and validating dates...")
+  # Flag 5: Date parsing and validation ----------------------------------------
+  message("\n5. Flagging date issues...")
 
-  kenya_step5 <- kenya_step4 %>%
+  # Parse dates
+  kenya_flagged <- kenya_flagged %>%
     mutate(
       eventDate = ymd(eventDate),
       year = year(eventDate),
@@ -191,7 +172,7 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
     )
 
   # Check for invalid dates
-  date_issues <- kenya_step5 %>%
+  date_issues <- kenya_flagged %>%
     summarise(
       n_missing_date = sum(is.na(eventDate)),
       n_missing_year = sum(is.na(year)),
@@ -200,51 +181,52 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
       n_valid_year = sum(year >= 1950 & year <= year(Sys.Date()), na.rm = TRUE)
     )
 
-  kenya_step6 <- kenya_step5 %>%
-    filter(year >= 1950, year <= year(Sys.Date()))
-
-  kenya_step5 <- add_step(
+  kenya_flagged$flag_invalid_date <- add_flag_tracking(
     "Invalid dates",
     "Records with dates before 1950 or in the future",
-    kenya_step5,
-    kenya_step6
+    is.na(kenya_flagged$year) |
+      kenya_flagged$year < 1950 |
+      kenya_flagged$year > year(Sys.Date())
   )
 
-  # Step 6: Duplicate records --------------------------------------------------
-  message("\n6. Identifying duplicate records...")
+  # Flag 6: Duplicate records --------------------------------------------------
+  message("\n6. Flagging duplicate records...")
 
   # Identify duplicates
-  duplicates <- kenya_step6 %>%
+  kenya_flagged <- kenya_flagged %>%
     group_by(species, decimalLongitude, decimalLatitude, eventDate) %>%
-    filter(n() > 1) %>%
+    mutate(
+      duplicate_group_size = n(),
+      flag_duplicate = duplicate_group_size > 1
+    ) %>%
     ungroup()
 
-  n_duplicate_sets <- duplicates %>%
-    group_by(species, decimalLongitude, decimalLatitude, eventDate) %>%
-    summarise(n = n(), .groups = "drop") %>%
-    nrow()
+  duplicates_summary <- kenya_flagged %>%
+    filter(flag_duplicate) %>%
+    summarise(
+      n_duplicate_records = n(),
+      n_duplicate_sets = n_distinct(species, decimalLongitude, decimalLatitude, eventDate)
+    )
 
-  kenya_step7 <- kenya_step6 %>%
-    distinct(species, decimalLongitude, decimalLatitude, eventDate, .keep_all = TRUE)
-
-  kenya_step6 <- add_step(
+  add_flag_tracking(
     "Duplicates",
     "Exact duplicate records (same species, location, and date)",
-    kenya_step6,
-    kenya_step7
+    kenya_flagged$flag_duplicate
   )
 
+  # Flag 7: CoordinateCleaner tests --------------------------------------------
   message("\n7. Applying CoordinateCleaner tests...")
 
-  # Individual CoordinateCleaner tests -----------------------------------------
-  # Run each test separately to track individual issues
+  # Need to work with records that have coordinates
+  kenya_with_coords <- kenya_flagged %>%
+    filter(!flag_missing_coords)
 
   coord_issues <- list()
 
   # Test 1: Capitals
   message("  - Testing capitals...")
-  flags_capitals <- cc_cap(
-    kenya_step7,
+  flags_capitals <- !cc_cap(
+    kenya_with_coords,
     lon = "decimalLongitude",
     lat = "decimalLatitude",
     buffer = 10000,
@@ -255,8 +237,8 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
 
   # Test 2: Centroids
   message("  - Testing centroids...")
-  flags_centroids <- cc_cen(
-    kenya_step7,
+  flags_centroids <- !cc_cen(
+    kenya_with_coords,
     lon = "decimalLongitude",
     lat = "decimalLatitude",
     buffer = 5000,
@@ -267,8 +249,8 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
 
   # Test 3: Equal coordinates
   message("  - Testing equal coordinates...")
-  flags_equal <- cc_equ(
-    kenya_step7,
+  flags_equal <- !cc_equ(
+    kenya_with_coords,
     lon = "decimalLongitude",
     lat = "decimalLatitude",
     value = "flagged",
@@ -278,8 +260,8 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
 
   # Test 4: GBIF headquarters
   message("  - Testing GBIF headquarters...")
-  flags_gbif <- cc_gbif(
-    kenya_step7,
+  flags_gbif <- !cc_gbif(
+    kenya_with_coords,
     lon = "decimalLongitude",
     lat = "decimalLatitude",
     value = "flagged",
@@ -289,8 +271,8 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
 
   # Test 5: Zeros
   message("  - Testing zeros...")
-  flags_zeros <- cc_zero(
-    kenya_step7,
+  flags_zeros <- !cc_zero(
+    kenya_with_coords,
     lon = "decimalLongitude",
     lat = "decimalLatitude",
     buffer = 0.5,
@@ -301,8 +283,8 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
 
   # Test 6: Urban areas
   message("  - Testing urban areas...")
-  flags_urban <- cc_urb(
-    kenya_step7,
+  flags_urban <- !cc_urb(
+    kenya_with_coords,
     lon = "decimalLongitude",
     lat = "decimalLatitude",
     value = "flagged",
@@ -312,8 +294,8 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
 
   # Test 7: Outliers
   message("  - Testing outliers...")
-  flags_outliers <- cc_outl(
-    kenya_step7,
+  flags_outliers <- !cc_outl(
+    kenya_with_coords,
     lon = "decimalLongitude",
     lat = "decimalLatitude",
     species = "species",
@@ -326,38 +308,49 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
   )
   coord_issues$outliers <- sum(flags_outliers)
 
-  # Combined coordinate cleaning
-  flags_all <- clean_coordinates(
-    x = kenya_step7,
-    lon = "decimalLongitude",
-    lat = "decimalLatitude",
-    species = "species",
-    countries = "countryCode",
-    tests = c("capitals", "centroids", "equal", "gbif", "outliers", "zeros", "urban"),
-    capitals_rad = 10000,
-    centroids_rad = 5000,
-    zeros_rad = 0.5,
-    outliers_method = "quantile",
-    outliers_mtp = 5,
-    outliers_td = 1000,
-    outliers_size = 10,
-    verbose = FALSE,
-    value = "flagged"
+  # Add coordinate flags to main dataset
+  # Initialize all coordinate flags as FALSE
+  kenya_flagged$flag_coord_capitals <- FALSE
+  kenya_flagged$flag_coord_centroids <- FALSE
+  kenya_flagged$flag_coord_equal <- FALSE
+  kenya_flagged$flag_coord_gbif <- FALSE
+  kenya_flagged$flag_coord_zeros <- FALSE
+  kenya_flagged$flag_coord_urban <- FALSE
+  kenya_flagged$flag_coord_outliers <- FALSE
+
+  # Set flags for records with coordinates
+  valid_indices <- which(!kenya_flagged$flag_missing_coords)
+  kenya_flagged$flag_coord_capitals[valid_indices] <- flags_capitals
+  kenya_flagged$flag_coord_centroids[valid_indices] <- flags_centroids
+  kenya_flagged$flag_coord_equal[valid_indices] <- flags_equal
+  kenya_flagged$flag_coord_gbif[valid_indices] <- flags_gbif
+  kenya_flagged$flag_coord_zeros[valid_indices] <- flags_zeros
+  kenya_flagged$flag_coord_urban[valid_indices] <- flags_urban
+  kenya_flagged$flag_coord_outliers[valid_indices] <- flags_outliers
+
+  # Add tracking for coordinate flags
+  add_flag_tracking("Coord: Capitals", "Within 10km of capitals", kenya_flagged$flag_coord_capitals)
+  add_flag_tracking("Coord: Centroids", "Within 5km of centroids", kenya_flagged$flag_coord_centroids)
+  add_flag_tracking("Coord: Equal", "Identical lat/lon", kenya_flagged$flag_coord_equal)
+  add_flag_tracking("Coord: GBIF HQ", "At GBIF headquarters", kenya_flagged$flag_coord_gbif)
+  add_flag_tracking("Coord: Zeros", "At (0,0) or near", kenya_flagged$flag_coord_zeros)
+  add_flag_tracking("Coord: Urban", "In urban areas", kenya_flagged$flag_coord_urban)
+  add_flag_tracking("Coord: Outliers", "Statistical outliers", kenya_flagged$flag_coord_outliers)
+
+  # Create combined coordinate quality flag
+  kenya_flagged$flag_any_coord_issue <- (
+    kenya_flagged$flag_coord_capitals |
+    kenya_flagged$flag_coord_centroids |
+    kenya_flagged$flag_coord_equal |
+    kenya_flagged$flag_coord_gbif |
+    kenya_flagged$flag_coord_zeros |
+    kenya_flagged$flag_coord_urban |
+    kenya_flagged$flag_coord_outliers
   )
 
-  kenya_step8 <- kenya_step7 %>%
-    filter(!flags_all)
-
-  kenya_step7 <- add_step(
-    "Coordinate flags",
-    "Records flagged by CoordinateCleaner (any test)",
-    kenya_step7,
-    kenya_step8
-  )
+  add_flag_tracking("Any coord issue", "Any CoordinateCleaner flag", kenya_flagged$flag_any_coord_issue)
 
   # Create detailed coordinate issues table
-  # NOTE: Individual test counts may overlap - one record can be flagged by multiple tests
-  # Therefore, sum(records_flagged) may exceed the total number of unique records flagged
   coord_issues_df <- tibble(
     test = c("Capitals", "Centroids", "Equal coordinates", "GBIF HQ",
              "Zeros", "Urban areas", "Outliers"),
@@ -383,42 +376,58 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
   ) %>%
     arrange(desc(records_flagged))
 
-  # Verify final count matches
-  if (nrow(kenya_step8) != nrow(kenya_final)) {
-    warning("Final count mismatch! Expected: ", nrow(kenya_final),
-            ", Got: ", nrow(kenya_step8))
-  }
-
   # Summary statistics ---------------------------------------------------------
   message("\n=== Data Quality Summary ===")
-  message("Original records: ", format(n_original, big.mark = ","))
-  message("Final clean records: ", format(nrow(kenya_final), big.mark = ","))
-  message("Total removed: ", format(n_original - nrow(kenya_final), big.mark = ","),
-          " (", round(((n_original - nrow(kenya_final)) / n_original) * 100, 2), "%)")
+  message("Total records: ", format(n_original, big.mark = ","))
+
+  # Calculate how many records would be retained with different filter strategies
+  clean_counts <- kenya_flagged %>%
+    summarise(
+      strict_clean = sum(
+        !flag_missing_coords & !flag_high_uncertainty &
+        !flag_inappropriate_basis & !flag_missing_species &
+        !flag_invalid_date & !flag_duplicate & !flag_any_coord_issue
+      ),
+      moderate_clean = sum(
+        !flag_missing_coords & !flag_missing_species &
+        !flag_invalid_date & !flag_any_coord_issue
+      ),
+      minimal_clean = sum(
+        !flag_missing_coords & !flag_missing_species
+      )
+    )
+
+  message("\nRecords passing different filter levels:")
+  message("  Strict (all flags pass): ", format(clean_counts$strict_clean, big.mark = ","),
+          " (", round(100 * clean_counts$strict_clean / n_original, 1), "%)")
+  message("  Moderate (core flags): ", format(clean_counts$moderate_clean, big.mark = ","),
+          " (", round(100 * clean_counts$moderate_clean / n_original, 1), "%)")
+  message("  Minimal (coords + species): ", format(clean_counts$minimal_clean, big.mark = ","),
+          " (", round(100 * clean_counts$minimal_clean / n_original, 1), "%)")
 
   # Calculate additional quality metrics ---------------------------------------
   quality_metrics <- list(
-    # Overall retention
-    retention_rate = (nrow(kenya_final) / n_original) * 100,
-    removal_rate = ((n_original - nrow(kenya_final)) / n_original) * 100,
+    # Overall stats
+    n_records = n_original,
+    n_strict_clean = clean_counts$strict_clean,
+    n_moderate_clean = clean_counts$moderate_clean,
+    n_minimal_clean = clean_counts$minimal_clean,
 
     # Data completeness
     completeness = list(
-      coordinates = (nrow(kenya_step1) / n_original) * 100,
+      coordinates = sum(!kenya_flagged$flag_missing_coords),
       species_id = tax_completeness$pct_n_with_species,
       genus_id = tax_completeness$pct_n_with_genus,
       family_id = tax_completeness$pct_n_with_family,
-      dates = (date_issues$n_valid_year / n_original) * 100
+      dates = 100 * sum(!kenya_flagged$flag_invalid_date, na.rm = TRUE) / n_original
     ),
 
     # Coordinate quality
     coordinate_quality = list(
       uncertainty_summary = uncertainty_summary,
       coord_issues_summary = coord_issues_df,
-      # Count of unique records flagged by ANY CoordinateCleaner test
-      total_coord_flags = sum(flags_all),
-      # Percentage of records at step 7 that were flagged (should be 0-100%)
-      percent_coord_flags = (sum(flags_all) / nrow(kenya_step7)) * 100
+      total_coord_flags = sum(kenya_flagged$flag_any_coord_issue),
+      percent_coord_flags = 100 * sum(kenya_flagged$flag_any_coord_issue) / n_original
     ),
 
     # Taxonomic completeness
@@ -428,11 +437,7 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
     temporal_quality = date_issues,
 
     # Duplicates
-    duplicate_info = list(
-      n_duplicate_records = nrow(duplicates),
-      n_duplicate_sets = n_duplicate_sets,
-      percent_duplicates = (nrow(duplicates) / nrow(kenya_step6)) * 100
-    ),
+    duplicate_info = duplicates_summary,
 
     # Basis of record
     basis_of_record = basis_summary
@@ -444,22 +449,29 @@ if (!skip_if_complete("Data Quality Assessment", results_dir, required_files)) {
     coord_issues = coord_issues_df,
     metrics = quality_metrics,
     n_original = n_original,
-    n_final = nrow(kenya_final),
-    assessment_date = Sys.Date()
+    clean_counts = clean_counts,
+    assessment_date = Sys.Date(),
+    flag_columns = names(kenya_flagged)[grepl("^flag_", names(kenya_flagged))]
   )
 
   # Save results ---------------------------------------------------------------
   saveRDS(quality_results, file.path(results_dir, "data_quality_assessment.rds"))
   write_csv(quality_tracking, file.path(results_dir, "data_quality_tracking.csv"))
   write_csv(coord_issues_df, file.path(results_dir, "coordinate_issues_summary.csv"))
+  saveRDS(kenya_flagged, file.path(results_dir, "kenya_gbif_flagged.rds"))
 
   # Also save to old location for backward compatibility
   saveRDS(quality_results, file.path(data_outputs, "data_quality_assessment.rds"))
   write_csv(quality_tracking, file.path(data_outputs, "data_quality_tracking.csv"))
   write_csv(coord_issues_df, file.path(data_outputs, "coordinate_issues_summary.csv"))
+  saveRDS(kenya_flagged, file.path(data_outputs, "kenya_gbif_flagged.rds"))
+
+  # Also save to processed for easy access by other scripts
+  saveRDS(kenya_flagged, file.path(data_processed, "kenya_gbif_flagged.rds"))
 
   message("\n=== Data quality assessment complete ===")
   message("Results saved to: ", results_dir)
+  message("Flagged dataset saved to: ", file.path(data_processed, "kenya_gbif_flagged.rds"))
 }
 
 # Load results for visualization -----------------------------------------------
@@ -471,65 +483,71 @@ if (!exists("quality_results")) {
 # Create visualizations --------------------------------------------------------
 message("\nGenerating data quality visualizations...")
 
-# 1. Waterfall/Cascade plot showing filtering steps
-cascade_plot <- quality_results$tracking %>%
-  mutate(
-    step = fct_reorder(factor(step), row_number()),
-    step_label = paste0(step, "\n(", format(records_removed, big.mark = ","), ")")
-  ) %>%
-  ggplot(aes(x = step, y = records_removed, fill = percent_removed)) +
+# 1. Flag frequency plot
+flag_plot <- quality_results$tracking %>%
+  filter(records_flagged > 0) %>%
+  mutate(issue = fct_reorder(factor(issue), records_flagged)) %>%
+  ggplot(aes(x = issue, y = records_flagged, fill = percent_flagged)) +
   geom_col() +
-  geom_text(aes(label = format(records_removed, big.mark = ",")),
-            vjust = -0.5, size = 3) +
+  geom_text(aes(label = paste0(format(records_flagged, big.mark = ","), "\n",
+                                "(", round(percent_flagged, 1), "%)")),
+            hjust = -0.1, size = 3) +
   scale_fill_viridis_c(option = "magma", direction = -1,
-                       name = "% of original") +
-  scale_y_continuous(labels = scales::comma) +
+                       name = "% of records") +
+  scale_y_continuous(labels = scales::comma, expand = expansion(mult = c(0, 0.15))) +
+  coord_flip() +
   labs(
-    title = "Data Quality Filtering Cascade",
-    subtitle = paste0("From ", format(quality_results$n_original, big.mark = ","),
-                      " to ", format(quality_results$n_final, big.mark = ","),
-                      " records (",
-                      round(quality_results$metrics$retention_rate, 1), "% retained)"),
-    x = "Quality Filter",
-    y = "Records Removed"
+    title = "Data Quality Flags by Issue Type",
+    subtitle = paste0("Total records: ", format(quality_results$n_original, big.mark = ",")),
+    x = "Quality Issue",
+    y = "Records Flagged"
   ) +
   theme_minimal(base_size = 12) +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
     plot.title = element_text(face = "bold", size = 14),
     legend.position = "right"
   )
 
-ggsave(file.path(figures_dir, "data_quality_cascade.png"),
-       cascade_plot, width = 10, height = 6, dpi = 300)
+ggsave(file.path(figures_dir, "data_quality_flags.png"),
+       flag_plot, width = 12, height = 10, dpi = 300)
 
-# 2. Cumulative retention plot
-retention_plot <- quality_results$tracking %>%
-  mutate(
-    step = fct_reorder(factor(step), row_number()),
-    retention_pct = (records_remaining / quality_results$n_original) * 100
-  ) %>%
-  ggplot(aes(x = step, y = retention_pct, group = 1)) +
-  geom_line(color = "#2C3E50", size = 1) +
-  geom_point(color = "#E74C3C", size = 3) +
-  geom_hline(yintercept = 100, linetype = "dashed", alpha = 0.5) +
-  geom_text(aes(label = paste0(round(retention_pct, 1), "%")),
-            vjust = -1, size = 3) +
-  scale_y_continuous(limits = c(0, 105), breaks = seq(0, 100, 20)) +
+# 2. Filter level comparison
+filter_comparison <- tibble(
+  filter_level = c("Original\n(no filtering)",
+                   "Minimal\n(coords + species)",
+                   "Moderate\n(+ dates + coord quality)",
+                   "Strict\n(all flags pass)"),
+  n_records = c(quality_results$n_original,
+                quality_results$clean_counts$minimal_clean,
+                quality_results$clean_counts$moderate_clean,
+                quality_results$clean_counts$strict_clean),
+  percent = 100 * n_records / quality_results$n_original
+) %>%
+  mutate(filter_level = factor(filter_level, levels = filter_level))
+
+filter_plot <- ggplot(filter_comparison, aes(x = filter_level, y = n_records, fill = percent)) +
+  geom_col(alpha = 0.8) +
+  geom_text(aes(label = paste0(format(n_records, big.mark = ","), "\n",
+                                "(", round(percent, 1), "%)")),
+            vjust = -0.5, size = 4) +
+  scale_fill_viridis_c(option = "plasma", direction = -1,
+                       name = "% of original") +
+  scale_y_continuous(labels = scales::comma, expand = expansion(mult = c(0, 0.15))) +
   labs(
-    title = "Cumulative Data Retention Through Quality Filters",
-    subtitle = "Percentage of original records remaining after each filter",
-    x = "Quality Filter",
-    y = "Records Retained (%)"
+    title = "Records Retained Under Different Filtering Strategies",
+    subtitle = "Downstream analyses can choose appropriate filter level",
+    x = "Filter Level",
+    y = "Records Retained"
   ) +
   theme_minimal(base_size = 12) +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    plot.title = element_text(face = "bold", size = 14)
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "right",
+    axis.text.x = element_text(hjust = 0.5)
   )
 
-ggsave(file.path(figures_dir, "data_quality_retention.png"),
-       retention_plot, width = 10, height = 6, dpi = 300)
+ggsave(file.path(figures_dir, "data_quality_filter_levels.png"),
+       filter_plot, width = 12, height = 8, dpi = 300)
 
 # 3. CoordinateCleaner issues breakdown
 coord_plot <- quality_results$coord_issues %>%
@@ -559,39 +577,8 @@ coord_plot <- quality_results$coord_issues %>%
 ggsave(file.path(figures_dir, "coordinate_issues_breakdown.png"),
        coord_plot, width = 10, height = 6, dpi = 300)
 
-# 4. Summary pie chart
-summary_data <- tibble(
-  category = c("Retained (Clean)", "Removed (Quality Issues)"),
-  count = c(quality_results$n_final,
-            quality_results$n_original - quality_results$n_final),
-  percentage = c(quality_results$metrics$retention_rate,
-                 quality_results$metrics$removal_rate)
-)
-
-summary_pie <- summary_data %>%
-  ggplot(aes(x = "", y = count, fill = category)) +
-  geom_col(width = 1, color = "white") +
-  geom_text(aes(label = paste0(format(count, big.mark = ","), "\n",
-                                "(", round(percentage, 1), "%)")),
-            position = position_stack(vjust = 0.5), size = 5) +
-  coord_polar("y", start = 0) +
-  scale_fill_manual(values = c("Retained (Clean)" = "#27AE60",
-                                "Removed (Quality Issues)" = "#E74C3C")) +
-  labs(
-    title = "Overall Data Quality Assessment",
-    subtitle = paste0("GBIF Kenya: ", format(quality_results$n_original, big.mark = ","),
-                      " original records"),
-    fill = ""
-  ) +
-  theme_void(base_size = 12) +
-  theme(
-    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
-    plot.subtitle = element_text(hjust = 0.5),
-    legend.position = "bottom"
-  )
-
-ggsave(file.path(figures_dir, "data_quality_summary_pie.png"),
-       summary_pie, width = 8, height = 8, dpi = 300)
-
 message("Visualizations saved to: ", figures_dir)
 message("\n=== All data quality assessments complete ===")
+message("\nNOTE: This script FLAGS quality issues but does NOT filter data.")
+message("Downstream analyses should load 'kenya_gbif_flagged.rds' and apply")
+message("filters appropriate to their specific requirements.")

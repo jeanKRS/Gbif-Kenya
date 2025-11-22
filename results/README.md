@@ -32,10 +32,13 @@ results/
 
 **Key Outputs:**
 - `data_quality_assessment.rds` - Complete quality assessment results
-- `data_quality_tracking.csv` - Step-by-step filtering cascade
+- `data_quality_tracking.csv` - Summary of all quality flags
 - `coordinate_issues_summary.csv` - CoordinateCleaner test results
+- `kenya_gbif_flagged.rds` - **IMPORTANT**: Full dataset with quality flags added as columns
 
-**Purpose:** Comprehensive tracking of data quality issues including missing data, coordinate quality, duplicates, and spatial flags.
+**Purpose:** Comprehensive identification and flagging of data quality issues. **This script does NOT filter data** - it only adds flag columns. Each downstream analysis decides which flags to filter based on its specific requirements.
+
+**Important Note:** Downstream analyses should load `kenya_gbif_flagged.rds` (not `kenya_gbif_clean.rds`) and apply filters appropriate to their needs. See `docs/FILTERING_RATIONALE.md` for guidance.
 
 ---
 
@@ -158,12 +161,42 @@ The following utility functions in `R/utils.R` support the results caching syste
 - `skip_if_complete(analysis_name, results_dir, required_files)` - Skip analysis if complete
 - `copy_to_results(files, from_dir, to_subdir)` - Copy files to results folder
 
+## Data Quality Flagging vs. Filtering
+
+**Important Change (2025-11-22):** The data quality assessment now uses a **flagging** approach instead of filtering:
+
+- **Old approach**: Remove records with quality issues, create `kenya_gbif_clean.rds`
+- **New approach**: Flag quality issues, keep all records, create `kenya_gbif_flagged.rds`
+
+### Why This Change?
+
+Different bias assessments are affected differently by data quality issues. For example:
+- **Spatial bias**: We WANT to keep records near capitals/cities - that's the bias we're measuring!
+- **Temporal bias**: Coordinate quality doesn't matter for temporal patterns
+- **Taxonomic bias**: We can analyze taxonomic coverage even without coordinates
+
+### How It Works
+
+1. `01b_data_quality_assessment.R` adds flag columns to the data (e.g., `flag_missing_coords`, `flag_coord_urban`)
+2. Each analysis script loads `kenya_gbif_flagged.rds` and applies filters relevant to its goals
+3. Each analysis documents which flags it filtered and why
+
+See `docs/FILTERING_RATIONALE.md` for detailed guidance on which flags each analysis should apply.
+
+### Available Flags
+
+- Core: `flag_missing_coords`, `flag_missing_species`, `flag_invalid_date`, `flag_duplicate`
+- Uncertainty: `flag_high_uncertainty`
+- Coordinates: `flag_coord_capitals`, `flag_coord_urban`, `flag_coord_outliers`, etc.
+- Combined: `flag_any_coord_issue`
+
 ## Tips
 
 1. **Large files:** `.gitignore` is configured to exclude `*.rds` files, so results won't be committed to git
 2. **Clean rebuild:** Delete the entire `results/` folder to force a complete re-analysis
 3. **Partial rebuild:** Delete individual subfolders to re-run specific analyses
 4. **Development mode:** When developing a new analysis, delete just that subfolder frequently
+5. **Filtering**: Each analysis applies different filters - check `docs/FILTERING_RATIONALE.md` for the logic
 
 ## Related Files
 
