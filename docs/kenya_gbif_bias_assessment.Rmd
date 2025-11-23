@@ -801,6 +801,119 @@ moran_results <- spatial_summary$moran_results
 env_bias <- spatial_summary$env_bias_summary
 ```
 
+```{r complete-spatial-grid-pipeline, eval=FALSE, echo=FALSE, results='asis'}
+create_code_details("
+### COMPLETE PIPELINE: Spatial Grid Creation → Sampling Effort Metrics ###
+
+## File: scripts/02_spatial_bias.R
+## Description: Creating hexagonal grid at ~10km resolution and calculating
+##              sampling effort metrics per grid cell
+
+## Step 1: Create hexagonal grid covering Kenya
+## File: scripts/02_spatial_bias.R, lines 76-84
+kenya_grid <- st_make_grid(
+  kenya_boundary,
+  cellsize = 0.1,  # ~10km at equator
+  square = FALSE,   # hexagonal grid
+  what = 'polygons'
+) %>%
+  st_sf() %>%
+  mutate(grid_id = row_number()) %>%
+  st_intersection(kenya_boundary)  # Clip to Kenya boundary
+
+## Step 2: Count records per grid cell
+## File: scripts/02_spatial_bias.R, lines 87-94
+grid_effort <- kenya_grid %>%
+  st_join(kenya_occurrences) %>%  # Spatial join: assign records to grid cells
+  group_by(grid_id) %>%
+  summarise(
+    n_records = sum(!is.na(species)),  # Count non-NA species
+    n_species = n_distinct(species, na.rm = TRUE),  # Count unique species
+    .groups = 'drop'
+  )
+
+## Step 3: Add zero-record cells and calculate log-transformed effort
+## File: scripts/02_spatial_bias.R, lines 97-103
+kenya_grid_complete <- kenya_grid %>%
+  left_join(st_drop_geometry(grid_effort), by = 'grid_id') %>%
+  mutate(
+    n_records = replace_na(n_records, 0),  # Grid cells with no records = 0
+    n_species = replace_na(n_species, 0),
+    log_records = log10(n_records + 1)  # Log transform for visualization
+  )
+
+## Step 4: Save spatial grid with effort metrics
+saveRDS(kenya_grid_complete,
+        file.path(data_outputs, 'spatial_grid_effort.rds'))
+
+### Data Flow Summary:
+# 1. Kenya boundary (polygon) → st_make_grid() → hexagonal grid
+# 2. Grid cells + occurrence points → st_join() → records per cell
+# 3. Grid with effort → replace_na() → complete grid (including zeros)
+# Result: spatial_grid object with columns: grid_id, geometry, n_records,
+#         n_species, log_records
+",
+title = "View Complete Spatial Grid Creation Code",
+language = "r")
+```
+
+```{r complete-moran-pipeline, eval=FALSE, echo=FALSE, results='asis'}
+create_code_details("
+### COMPLETE PIPELINE: Moran's I Spatial Autocorrelation Test ###
+
+## File: scripts/02_spatial_bias.R
+## Description: Testing for spatial clustering in sampling effort using
+##              Moran's I statistic
+
+## Step 1: Get grid cell centroids
+## File: scripts/02_spatial_bias.R, lines 139-140
+coords_centroids <- st_centroid(kenya_grid_complete) %>%
+  st_coordinates()  # Extract XY coordinates as matrix
+
+## Step 2: Create distance-based neighbor network
+## File: scripts/02_spatial_bias.R, lines 143-144
+# Define neighbors as cells within 15km of each other
+neighbors <- dnearneigh(coords_centroids, 0, 15000)  # 15km threshold
+weights <- nb2listw(neighbors, style = 'W', zero.policy = TRUE)
+# style='W': row-standardized weights (neighbors sum to 1)
+# zero.policy=TRUE: allow cells with no neighbors
+
+## Step 3: Calculate Moran's I for sampling effort
+## File: scripts/02_spatial_bias.R, lines 147
+moran_test <- moran.test(
+  kenya_grid_complete$n_records,  # Variable to test
+  weights,                         # Spatial weights matrix
+  zero.policy = TRUE               # Handle isolated cells
+)
+
+## Step 4: Extract test results into tidy format
+## File: scripts/02_spatial_bias.R, lines 149-156
+moran_results <- data.frame(
+  variable = 'sampling_effort',
+  morans_i = moran_test$estimate['Moran I statistic'],
+  expectation = moran_test$estimate['Expectation'],  # Expected I under null
+  variance = moran_test$estimate['Variance'],
+  p_value = moran_test$p.value,
+  interpretation = ifelse(moran_test$statistic > 0, 'Clustered', 'Dispersed')
+)
+
+## Step 5: Save results
+saveRDS(moran_results,
+        file.path(data_outputs, 'spatial_autocorrelation.rds'))
+
+### Interpretation:
+# Moran's I ranges from -1 to +1:
+#  - I > 0: Positive autocorrelation (clustering) - nearby cells similar
+#  - I ≈ 0: No autocorrelation - random spatial pattern
+#  - I < 0: Negative autocorrelation (dispersion) - nearby cells dissimilar
+#
+# p-value tests null hypothesis of spatial randomness
+# Significant positive I indicates clustered sampling (common in biodiversity data)
+",
+title = "View Complete Moran's I Calculation Code",
+language = "r")
+```
+
 Spatial bias occurs when sampling effort is unevenly distributed across geographic space, typically concentrated in accessible areas near roads, cities, and research stations. We assessed spatial patterns using multiple complementary approaches:
 
 ### Grid-Based Analysis
@@ -899,6 +1012,145 @@ class_summary <- readRDS(file.path(data_outputs, "class_summary.rds"))
 rarity_summary <- readRDS(file.path(data_outputs, "rarity_summary.rds"))
 ```
 
+```{r complete-class-summary-pipeline, eval=FALSE, echo=FALSE, results='asis'}
+create_code_details("
+### COMPLETE PIPELINE: Taxonomic Class Summary & Diversity Metrics ###
+
+## File: scripts/04_taxonomic_bias.R
+## Description: Aggregating records by taxonomic class and calculating
+##              inequality and diversity metrics
+
+## Step 1: Aggregate records by class
+## File: scripts/04_taxonomic_bias.R, lines 82-92
+class_summary <- kenya_data %>%
+  filter(!is.na(class)) %>%  # Exclude records without class
+  group_by(kingdom, phylum, class) %>%  # Group by hierarchical taxonomy
+  summarise(
+    n_records = n(),  # Total records for this class
+    n_orders = n_distinct(order, na.rm = TRUE),
+    n_families = n_distinct(family, na.rm = TRUE),
+    n_species = n_distinct(species, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(desc(n_records))  # Sort by most recorded classes first
+
+## Step 2: Save class-level summary
+saveRDS(class_summary, file.path(data_outputs, 'class_summary.rds'))
+
+## Step 3: Calculate Gini coefficient (inequality metric)
+## File: scripts/04_taxonomic_bias.R, lines 129-130
+gini_records <- ineq::Gini(class_summary$n_records)
+gini_species <- ineq::Gini(class_summary$n_species)
+# Gini = 0: perfect equality (all classes have equal records)
+# Gini = 1: perfect inequality (one class has all records)
+# Typical biodiversity data: Gini > 0.6 indicates high inequality
+
+## Step 4: Calculate Simpson's diversity index
+## File: scripts/04_taxonomic_bias.R, lines 133-134
+simpson_class <- diversity(class_summary$n_records, index = 'simpson')
+shannon_class <- diversity(class_summary$n_records, index = 'shannon')
+# Simpson: probability two random records are different classes
+# Shannon: entropy-based measure (higher = more diverse/even)
+
+## Step 5: Calculate Pielou's evenness
+## File: scripts/04_taxonomic_bias.R, lines 137
+evenness_class <- shannon_class / log(nrow(class_summary))
+# Evenness = 1: perfectly even distribution across classes
+# Evenness < 0.5: highly uneven (few classes dominate)
+
+## Step 6: Create diversity metrics summary
+## File: scripts/04_taxonomic_bias.R, lines 139-153
+diversity_metrics <- data.frame(
+  metric = c('Gini_records', 'Gini_species', 'Simpson_diversity',
+             'Shannon_diversity', 'Pielou_evenness'),
+  value = c(gini_records, gini_species, simpson_class,
+            shannon_class, evenness_class),
+  interpretation = c(
+    paste0('Records concentration (0=equal, 1=concentrated): ',
+           round(gini_records, 3)),
+    paste0('Species concentration: ', round(gini_species, 3)),
+    paste0('Class diversity: ', round(simpson_class, 3)),
+    paste0('Class diversity: ', round(shannon_class, 3)),
+    paste0('Evenness (0=uneven, 1=even): ', round(evenness_class, 3))
+  )
+)
+
+saveRDS(diversity_metrics,
+        file.path(data_outputs, 'taxonomic_diversity_metrics.rds'))
+
+### Data Flow Summary:
+# 1. Raw records → group_by(class) → count records & species per class
+# 2. Class counts → ineq::Gini() → inequality metric
+# 3. Class counts → vegan::diversity() → Simpson/Shannon indices
+# 4. Shannon / log(n_classes) → Pielou's evenness
+# Result: class_summary (records & species per class) + diversity_metrics
+",
+title = "View Complete Taxonomic Diversity Calculation Code",
+language = "r")
+```
+
+```{r complete-rarity-summary-pipeline, eval=FALSE, echo=FALSE, results='asis'}
+create_code_details("
+### COMPLETE PIPELINE: Species Rarity Distribution Analysis ###
+
+## File: scripts/04_taxonomic_bias.R
+## Description: Classifying species by rarity (number of occurrence records)
+##              and calculating rarity distribution
+
+## Step 1: Count records per species
+## File: scripts/04_taxonomic_bias.R, lines 223-235
+species_freq <- kenya_data %>%
+  count(species, name = 'n_records') %>%  # Count records per species
+  mutate(
+    rarity_class = case_when(
+      n_records == 1 ~ 'Singleton (1 record)',
+      n_records == 2 ~ 'Doubleton (2 records)',
+      n_records <= 5 ~ 'Very rare (3-5 records)',
+      n_records <= 10 ~ 'Rare (6-10 records)',
+      n_records <= 50 ~ 'Uncommon (11-50 records)',
+      n_records <= 100 ~ 'Common (51-100 records)',
+      TRUE ~ 'Very common (>100 records)'
+    )
+  )
+
+## Step 2: Summarize rarity distribution
+## File: scripts/04_taxonomic_bias.R, lines 237-247
+rarity_summary <- species_freq %>%
+  group_by(rarity_class) %>%
+  summarise(
+    n_species = n(),  # Number of species in this rarity class
+    total_records = sum(n_records),  # Total records from these species
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    prop_species = n_species / sum(n_species),  # % of species
+    prop_records = total_records / sum(total_records)  # % of records
+  )
+
+## Step 3: Save rarity summary
+saveRDS(rarity_summary, file.path(data_outputs, 'rarity_summary.rds'))
+
+### Interpretation:
+# - High proportion of singletons/rare species may indicate:
+#   1. True rarity (genuinely rare species)
+#   2. Undersampling (species present but rarely detected)
+#   3. Identification errors (misidentifications creating spurious rarities)
+#   4. Taxonomic uncertainties (cryptic species, unresolved taxonomy)
+#
+# - Typical GBIF datasets have 30-50% singletons
+# - Rarity classes help identify sampling completeness issues
+# - Species with >100 records generally have reliable distribution data
+
+### Data Flow Summary:
+# 1. Raw records → count(species) → records per species
+# 2. Records per species → case_when() → rarity class assignment
+# 3. Rarity classes → group_by() → count species per class
+# Result: rarity_summary showing distribution of species across rarity classes
+",
+title = "View Complete Rarity Distribution Calculation Code",
+language = "r")
+```
+
 Taxonomic bias occurs when certain taxonomic groups are disproportionately sampled compared to their true diversity. This is one of the most pervasive biases in biodiversity data, driven by:
 - **Human preferences**: Charismatic megafauna (birds, mammals) attract more attention than invertebrates
 - **Economic importance**: Agricultural pests/beneficials, disease vectors, and commercial species are well-studied
@@ -944,6 +1196,165 @@ We generated species accumulation curves showing cumulative species richness as 
 ```{r load-model-data}
 modeling_summary <- readRDS(file.path(data_outputs, "modeling_summary.rds"))
 model_summaries <- readRDS(file.path(data_outputs, "model_summaries.rds"))
+```
+
+```{r complete-statistical-models-pipeline, eval=FALSE, echo=FALSE, results='asis'}
+create_code_details("
+### COMPLETE PIPELINE: Statistical Models for Sampling Effort Predictors ###
+
+## File: scripts/05_statistical_models.R
+## Description: Fitting GLM and GAM models to identify environmental and
+##              geographic predictors of sampling effort
+
+## Step 1: Extract environmental covariates for grid cells
+## File: scripts/05_statistical_models.R, lines 34-63
+# Download environmental data
+elevation_data <- elevation_30s(country = 'KEN', path = tempdir())
+elevation <- if (is.character(elevation_data)) terra::rast(elevation_data)
+            else elevation_data
+
+climate_data <- worldclim_country(country = 'KEN', var = 'bio', path = tempdir())
+climate <- if (is.character(climate_data)) terra::rast(climate_data)
+           else climate_data
+
+# Extract bio1 (temperature) and bio12 (precipitation)
+temperature <- climate[[1]]
+precipitation <- climate[[12]]
+
+# Get grid centroids for extraction
+grid_centroids <- st_centroid(spatial_grid)
+grid_coords <- st_coordinates(grid_centroids)
+
+# Extract environmental values
+grid_env <- spatial_grid %>%
+  mutate(
+    elevation = terra::extract(elevation, grid_coords)[, 1],
+    temperature = terra::extract(temperature, grid_coords)[, 1],
+    precipitation = terra::extract(precipitation, grid_coords)[, 1],
+    lon = grid_coords[, 1],
+    lat = grid_coords[, 2]
+  )
+
+## Step 2: Calculate geographic covariates
+## File: scripts/05_statistical_models.R, lines 66-103
+# Major cities (Nairobi, Mombasa, Kisumu, Nakuru, Eldoret)
+major_cities <- data.frame(
+  city = c('Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret'),
+  lon = c(36.8219, 39.6682, 34.7617, 36.0667, 35.2698),
+  lat = c(-1.2921, -4.0435, -0.1022, -0.3031, 0.5143)
+) %>%
+  st_as_sf(coords = c('lon', 'lat'), crs = 4326)
+
+# Calculate minimum distance to cities
+dist_to_city <- st_distance(grid_centroids, major_cities)
+min_dist_to_city <- apply(dist_to_city, 1, min) / 1000  # Convert to km
+
+# Add to grid data and scale predictors
+grid_model <- st_drop_geometry(grid_env) %>%
+  mutate(
+    dist_to_city_km = as.numeric(min_dist_to_city),
+    dist_from_equator = abs(lat),
+    dist_from_coast_km = abs(lon - 40.5) * 111,  # Rough km conversion
+    # Scale environmental variables (mean-center, unit variance)
+    elevation_scaled = scale(elevation)[, 1],
+    temperature_scaled = scale(temperature)[, 1],
+    precipitation_scaled = scale(precipitation)[, 1],
+    dist_to_city_scaled = scale(dist_to_city_km)[, 1],
+    # Create presence/absence for logistic model
+    presence = as.numeric(n_records > 0)
+  ) %>%
+  # Remove NA/NaN/Inf values
+  filter(!is.na(elevation), !is.na(temperature), !is.na(precipitation),
+         !is.na(dist_to_city_km), is.finite(elevation_scaled),
+         is.finite(temperature_scaled), is.finite(precipitation_scaled))
+
+## Step 3: Fit Poisson GLM and check for overdispersion
+## File: scripts/05_statistical_models.R, lines 143-154
+glm_poisson <- glm(
+  n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+    dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+  data = grid_model,
+  family = poisson(link = 'log'),
+  control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
+)
+
+# Check for overdispersion
+overdispersion <- sum(residuals(glm_poisson, type = 'pearson')^2) /
+                  glm_poisson$df.residual
+# overdispersion > 2 indicates need for negative binomial model
+
+## Step 4: Fit Negative Binomial GLM (if overdispersed)
+## File: scripts/05_statistical_models.R, lines 157-180
+if (overdispersion > 2) {
+  glm_nb <- glm.nb(
+    n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+      dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+    data = grid_model,
+    control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
+  )
+  primary_model <- glm_nb
+  model_type <- 'Negative Binomial'
+} else {
+  primary_model <- glm_poisson
+  model_type <- 'Poisson'
+}
+
+## Step 5: Fit Binomial GLM for presence/absence
+## File: scripts/05_statistical_models.R, lines 261-268
+glm_binomial <- glm(
+  presence ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+    dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+  data = grid_model,
+  family = binomial(link = 'logit'),
+  control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
+)
+
+## Step 6: Extract model summaries with confidence intervals
+## File: scripts/05_statistical_models.R, lines 302-342
+# Tidy model output
+summary_count <- broom::tidy(primary_model) %>%
+  mutate(
+    conf.low = estimate - 1.96 * std.error,
+    conf.high = estimate + 1.96 * std.error,
+    model = 'Count Model',
+    significant = p.value < 0.05,
+    effect_direction = ifelse(estimate > 0, 'Positive', 'Negative')
+  )
+
+summary_presence <- broom::tidy(glm_binomial) %>%
+  mutate(
+    conf.low = estimate - 1.96 * std.error,
+    conf.high = estimate + 1.96 * std.error,
+    model = 'Presence Model',
+    significant = p.value < 0.05,
+    effect_direction = ifelse(estimate > 0, 'Positive', 'Negative')
+  )
+
+# Combine summaries
+model_summaries <- bind_rows(summary_count, summary_presence)
+saveRDS(model_summaries, file.path(data_outputs, 'model_summaries.rds'))
+
+## Step 7: Save final models
+saveRDS(primary_model, file.path(data_outputs, 'final_count_model.rds'))
+saveRDS(glm_binomial, file.path(data_outputs, 'final_presence_model.rds'))
+
+### Data Flow Summary:
+# 1. Spatial grid → extract environmental rasters → grid_env
+# 2. Grid + cities → calculate distances → grid_model with predictors
+# 3. Predictors + n_records → glm() → Poisson/NB model
+# 4. Predictors + presence → glm(binomial) → presence/absence model
+# 5. Models → broom::tidy() → coefficient summaries with CIs
+# Result: fitted GLMs showing which factors predict sampling effort
+
+### Model Interpretation:
+# - Negative coefficients: sampling decreases with increasing predictor
+# - Positive coefficients: sampling increases with increasing predictor
+# - Scaled predictors allow direct comparison of effect sizes
+# - Distance to city typically has strongest (negative) effect
+# - Environmental effects show habitat preferences of researchers
+",
+title = "View Complete Statistical Modeling Pipeline Code",
+language = "r")
 ```
 
 To understand what environmental and geographic factors predict sampling effort, we used generalized linear models (GLMs). This allows us to move beyond description to explanation - identifying where and why sampling is concentrated.
