@@ -566,8 +566,8 @@ Of the **`r format(n_original, big.mark=",")`** records originally downloaded fr
 
 **Interpretation**: The `r round(flag_rate, 1)`% flag rate reflects the prevalence of quality issues in aggregated biodiversity data, comparable to filtering rates in other regional GBIF assessments (typically 40-95% depending on quality standards). Importantly, our flagging approach preserves all records while documenting quality issues, allowing different analyses to apply appropriate filters based on their specific requirements. For example, spatial bias assessments should retain records flagged as "near urban centers" since urban clustering is the bias being measured, while species distribution models might exclude such records. This flexible approach balances data quality with analytical needs and ensures transparency in quality control decisions.
 
-```{r fig-quality-summary, fig.cap="Overall data quality assessment showing the proportion of records with quality flags. The chart illustrates what percentage of records would be retained under a moderate filtering strategy versus flagged for quality issues."}
-knitr::include_graphics(here("figures", "data_quality_summary.png"))
+```{r fig-quality-summary, fig.cap="Comparison of filtering strategies showing the number of records that would be retained under different quality filtering approaches (minimal, moderate, strict). This demonstrates the flexibility of the flagging framework to support different analytical requirements while preserving all records with documented quality flags."}
+knitr::include_graphics(here("figures", "data_quality_filter_levels.png"))
 ```
 
 ### Quality Flag Summary
@@ -601,13 +601,7 @@ kable(quality_table,
 Figure 3 visualizes the quality flag frequencies, showing the number of records flagged for each quality issue.
 
 ```{r fig-quality-flags, fig.cap="Data quality flag frequencies showing the number of records flagged for each quality issue. Bar height represents the number of records flagged, with color intensity indicating the percentage relative to the original dataset."}
-knitr::include_graphics(here("figures", "data_quality_flag_frequencies.png"))
-```
-
-Figure 4 illustrates the comparison between different filtering strategies (strict, moderate, and minimal), showing how many records would be retained under each approach.
-
-```{r fig-quality-strategies, fig.cap="Comparison of filtering strategies showing the number of records that would be retained under strict, moderate, and minimal quality filtering approaches. This demonstrates the flexibility of the flagging framework to support different analytical requirements."}
-knitr::include_graphics(here("figures", "data_quality_filtering_strategies.png"))
+knitr::include_graphics(here("figures", "data_quality_flags.png"))
 ```
 
 ### Coordinate Quality Issues
