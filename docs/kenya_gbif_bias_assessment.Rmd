@@ -1056,12 +1056,17 @@ With less than `r round(effort_summary$percent_covered, 1)`% of Kenya's area con
 knitr::include_graphics(here("figures", "01_sampling_effort_map.png"))
 ```
 
-```{r interactive-sampling-map, eval=file.exists(file.path(data_outputs, "spatial_grid_effort.rds"))}
-# Interactive Leaflet Map - Only render if data exists
-# This provides zoom, pan, and hover capabilities for educational exploration
+```{r interactive-sampling-map, eval=FALSE}
+# Interactive Leaflet Map - CURRENTLY DISABLED
+# Requires spatial grid data from scripts/02_spatial_bias.R
+# To enable: Run the analysis pipeline, then change eval=FALSE to eval=TRUE
 
-# Load spatial grid data
-spatial_grid <- readRDS(file.path(data_outputs, "spatial_grid_effort.rds"))
+# Check if spatial grid data exists
+spatial_grid_file <- file.path(data_outputs, "spatial_grid_effort.rds")
+
+if (file.exists(spatial_grid_file)) {
+  # Load spatial grid data
+  spatial_grid <- readRDS(spatial_grid_file)
 
 # Transform to WGS84 for leaflet
 spatial_grid_wgs84 <- st_transform(spatial_grid, 4326)
@@ -1223,94 +1228,98 @@ kable(trend_table, caption = "Table 8: Mann-Kendall trend tests for temporal pat
 knitr::include_graphics(here("figures", "05_temporal_trends.png"))
 ```
 
-```{r interactive-temporal-trends, eval=file.exists(file.path(data_outputs, "temporal_statistics.rds"))}
+```{r interactive-temporal-trends, eval=exists("temporal_summary")}
 # Interactive Plotly Chart for Temporal Trends
 # Allows zooming, panning, and hover to see exact values
+# Only renders if temporal data has been loaded
 
-# Load temporal data
-temporal_data <- readRDS(file.path(data_outputs, "temporal_statistics.rds"))
+# Check if we have the required data structure
+if (!is.null(temporal_summary) && "temporal_stats" %in% names(temporal_summary)) {
+  temporal_data <- temporal_summary$temporal_stats
 
-# Create interactive plotly chart with dual y-axes
-fig <- plot_ly(temporal_data)
+  # Verify required columns exist
+  if (all(c("year", "n_records", "n_species") %in% names(temporal_data))) {
+    # Create interactive plotly chart with dual y-axes
+    fig <- plot_ly(temporal_data)
 
-# Add records trace
-fig <- fig %>%
-  add_trace(
-    x = ~year,
-    y = ~n_records,
-    name = "Records",
-    type = 'scatter',
-    mode = 'lines+markers',
-    line = list(color = '#2E86AB', width = 2),
-    marker = list(size = 5),
-    hovertemplate = paste(
-      '<b>Year:</b> %{x}<br>',
-      '<b>Records:</b> %{y:,}<br>',
-      '<extra></extra>'
+    # Add records trace
+    fig <- fig %>%
+      add_trace(
+        x = ~year,
+        y = ~n_records,
+        name = "Records",
+        type = 'scatter',
+        mode = 'lines+markers',
+        line = list(color = '#2E86AB', width = 2),
+        marker = list(size = 5),
+        hovertemplate = paste(
+          '<b>Year:</b> %{x}<br>',
+          '<b>Records:</b> %{y:,}<br>',
+          '<extra></extra>'
+        )
+      )
+
+    # Add species trace on secondary axis
+    fig <- fig %>%
+      add_trace(
+        x = ~year,
+        y = ~n_species,
+        name = "Species",
+        type = 'scatter',
+        mode = 'lines+markers',
+        yaxis = 'y2',
+        line = list(color = '#A23B72', width = 2),
+        marker = list(size = 5),
+        hovertemplate = paste(
+          '<b>Year:</b> %{x}<br>',
+          '<b>Species:</b> %{y}<br>',
+          '<extra></extra>'
+        )
+      )
+
+    # Configure layout with dual axes
+    fig <- fig %>%
+      layout(
+        title = list(
+          text = "Interactive Temporal Trends: Records and Species over Time",
+          font = list(size = 16)
+        ),
+        xaxis = list(title = "Year"),
+        yaxis = list(
+          title = "Number of Records",
+          titlefont = list(color = '#2E86AB'),
+          tickfont = list(color = '#2E86AB')
+        ),
+        yaxis2 = list(
+          title = "Number of Species",
+          titlefont = list(color = '#A23B72'),
+          tickfont = list(color = '#A23B72'),
+          overlaying = 'y',
+          side = 'right'
+        ),
+        hovermode = 'x unified',
+        legend = list(x = 0.1, y = 0.9),
+        margin = list(l = 60, r = 60, t = 80, b = 60)
+      ) %>%
+      config(
+        displayModeBar = TRUE,
+        displaylogo = FALSE,
+        modeBarButtonsToRemove = c('lasso2d', 'select2d')
+      )
+
+    # Display the interactive chart
+    print(fig)
+
+    # Add function flow annotation
+    create_function_flow(
+      source_file = "scripts/03_temporal_bias.R",
+      line_range = "85-150",
+      func_name = "group_by(year) + summarize() + plotly::plot_ly()",
+      description = "Temporal statistics aggregated by year, showing trends in data accumulation over time"
     )
-  )
 
-# Add species trace on secondary axis
-fig <- fig %>%
-  add_trace(
-    x = ~year,
-    y = ~n_species,
-    name = "Species",
-    type = 'scatter',
-    mode = 'lines+markers',
-    yaxis = 'y2',
-    line = list(color = '#A23B72', width = 2),
-    marker = list(size = 5),
-    hovertemplate = paste(
-      '<b>Year:</b> %{x}<br>',
-      '<b>Species:</b> %{y}<br>',
-      '<extra></extra>'
-    )
-  )
-
-# Configure layout with dual axes
-fig <- fig %>%
-  layout(
-    title = list(
-      text = "Interactive Temporal Trends: Records and Species over Time",
-      font = list(size = 16)
-    ),
-    xaxis = list(title = "Year"),
-    yaxis = list(
-      title = "Number of Records",
-      titlefont = list(color = '#2E86AB'),
-      tickfont = list(color = '#2E86AB')
-    ),
-    yaxis2 = list(
-      title = "Number of Species",
-      titlefont = list(color = '#A23B72'),
-      tickfont = list(color = '#A23B72'),
-      overlaying = 'y',
-      side = 'right'
-    ),
-    hovermode = 'x unified',
-    legend = list(x = 0.1, y = 0.9),
-    margin = list(l = 60, r = 60, t = 80, b = 60)
-  ) %>%
-  config(
-    displayModeBar = TRUE,
-    displaylogo = FALSE,
-    modeBarButtonsToRemove = c('lasso2d', 'select2d')
-  )
-
-# Display the interactive chart
-fig
-
-# Add function flow annotation
-create_function_flow(
-  source_file = "scripts/03_temporal_bias.R",
-  line_range = "85-150",
-  func_name = "group_by(year) + summarize() + plotly::plot_ly()",
-  description = "Temporal statistics aggregated by year, showing trends in data accumulation over time"
-)
-
-# Add collapsible code showing the data aggregation
-create_code_details("
+    # Add collapsible code showing the data aggregation
+    create_code_details("
 # Temporal aggregation performed in 03_temporal_bias.R
 temporal_stats <- kenya_clean %>%
   filter(!is.na(year)) %>%
@@ -1327,8 +1336,10 @@ library(Kendall)
 mk_records <- MannKendall(temporal_stats$n_records)
 mk_species <- MannKendall(temporal_stats$n_species)
 ",
-  title = "View temporal aggregation code"
-)
+      title = "View temporal aggregation code"
+    )
+  }
+}
 ```
 
 ### Temporal Completeness
