@@ -1267,6 +1267,63 @@ modeling_summary <- readRDS(file.path(data_outputs, "modeling_summary.rds"))
 model_summaries <- readRDS(file.path(data_outputs, "model_summaries.rds"))
 ```
 
+```{r validate-model-predictors, echo=FALSE}
+# Validate which predictors are actually in the fitted model
+count_model_predictors <- model_summaries %>%
+  filter(model == "Count Model", term != "(Intercept)") %>%
+  pull(term)
+
+presence_model_predictors <- model_summaries %>%
+  filter(model == "Presence Model", term != "(Intercept)") %>%
+  pull(term)
+
+# Expected predictors based on modeling pipeline
+expected_predictors <- c(
+  "elevation_scaled", "temperature_scaled", "precipitation_scaled",
+  "dist_to_city_scaled", "dist_from_equator", "dist_from_coast_km"
+)
+
+# Check which predictors are missing
+missing_count <- setdiff(expected_predictors, count_model_predictors)
+missing_presence <- setdiff(expected_predictors, presence_model_predictors)
+
+# Create predictor availability summary
+n_count_predictors <- length(count_model_predictors)
+n_presence_predictors <- length(presence_model_predictors)
+n_expected <- length(expected_predictors)
+
+# Determine if model is complete or partial
+model_completeness <- if(length(missing_count) == 0) {
+  "complete"
+} else if(n_count_predictors >= 3) {
+  "partial"
+} else {
+  "minimal"
+}
+```
+
+```{r model-data-validation-note, echo=FALSE, results='asis', eval=length(missing_count) > 0}
+# Display data limitation notice if predictors are missing
+cat('<div style="
+  background-color: #fff3cd;
+  border-left: 4px solid #ffc107;
+  padding: 15px 20px;
+  margin: 20px 0;
+  border-radius: 5px;
+">')
+cat('<strong>⚠️ Data Availability Note:</strong><br>')
+cat('The fitted statistical model includes <strong>', n_count_predictors, ' of ', n_expected, ' expected predictors</strong> due to data availability constraints.<br><br>')
+cat('<strong>Available predictors:</strong> ', paste(gsub("_scaled", "", count_model_predictors), collapse = ", "), '<br>')
+if(length(missing_count) > 0) {
+  cat('<strong>Unavailable predictors:</strong> ', paste(gsub("_scaled|_km", "", missing_count), collapse = ", "), '<br><br>')
+  cat('<em>Analysis Implications:</em> The model focuses on environmental predictors (elevation, temperature, precipitation) ')
+  cat('and may not capture accessibility-related biases (distance to cities, coast) or latitudinal gradients. ')
+  cat('This represents a common constraint in biodiversity data analysis where complete covariate coverage is not always available. ')
+  cat('Results should be interpreted as preliminary environmental bias assessment rather than comprehensive sampling effort prediction.')
+}
+cat('</div>')
+```
+
 ```{r complete-statistical-models-pipeline, eval=FALSE, echo=FALSE, results='asis'}
 create_pipeline_card("
 ### COMPLETE PIPELINE: Statistical Models for Sampling Effort Predictors ###
@@ -1455,23 +1512,73 @@ This model identifies factors determining whether a location is sampled at all, 
 
 ### Predictor Variables
 
-- **Elevation**: Altitude in meters; affects accessibility and biodiversity
-- **Temperature**: Mean annual temperature (°C); represents climatic gradient
-- **Precipitation**: Annual precipitation (mm); represents moisture availability
-- **Distance to nearest city**: Proxy for accessibility and human influence
-- **Distance from equator**: Latitude proxy; Kenya spans equatorial to subtropical zones
-- **Distance from coast**: East-west geographic gradient from Indian Ocean to interior
+```{r predictor-list, echo=FALSE, results='asis'}
+# Dynamically list only available predictors
+predictor_descriptions <- list(
+  "elevation_scaled" = "**Elevation**: Altitude in meters; affects accessibility and biodiversity",
+  "temperature_scaled" = "**Temperature**: Mean annual temperature (°C); represents climatic gradient",
+  "precipitation_scaled" = "**Precipitation**: Annual precipitation (mm); represents moisture availability",
+  "dist_to_city_scaled" = "**Distance to nearest city**: Proxy for accessibility and human influence",
+  "dist_from_equator" = "**Distance from equator**: Latitude proxy; Kenya spans equatorial to subtropical zones",
+  "dist_from_coast_km" = "**Distance from coast**: East-west geographic gradient from Indian Ocean to interior"
+)
 
-All continuous predictors were scaled (mean-centered and standardized to unit variance) to facilitate coefficient interpretation and comparison.
+# List available predictors
+for(pred in count_model_predictors) {
+  if(pred %in% names(predictor_descriptions)) {
+    cat("- ", predictor_descriptions[[pred]], "\n")
+  }
+}
+
+# Note about missing predictors if any
+if(length(missing_count) > 0) {
+  cat("\n*Note: The following predictors were planned but unavailable due to data constraints: ",
+      paste(gsub("_scaled|_km", "", missing_count), collapse = ", "), ".*\n")
+}
+
+cat("\nAll continuous predictors were scaled (mean-centered and standardized to unit variance) to facilitate coefficient interpretation and comparison.\n")
+```
 
 ### Model Interpretation
 
-Positive coefficients (β > 0) indicate increased sampling effort with increasing predictor values. Negative coefficients (β < 0) indicate decreased effort. Statistical significance (p < 0.05) indicates the relationship is unlikely due to chance. The model allows us to:
+Positive coefficients (β > 0) indicate increased sampling effort with increasing predictor values. Negative coefficients (β < 0) indicate decreased effort. Statistical significance (p < 0.05) indicates the relationship is unlikely due to chance.
 
-1. **Identify accessibility bias**: Expect strong negative coefficient for distance to cities
-2. **Detect environmental preferences**: Which habitats/climates are preferred by researchers
-3. **Map sampling bias**: Model residuals show over-sampled (positive) vs under-sampled (negative) areas relative to environmental/geographic expectations
-4. **Guide future sampling**: Target under-sampled regions identified by model predictions
+```{r model-interpretation-text, echo=FALSE, results='asis'}
+# Dynamically describe model capabilities based on available predictors
+cat("The fitted model with *`r n_count_predictors`* predictor(s) allows us to:\n\n")
+
+if("elevation_scaled" %in% count_model_predictors ||
+   "temperature_scaled" %in% count_model_predictors ||
+   "precipitation_scaled" %in% count_model_predictors) {
+  cat("1. **Detect environmental preferences**: Which habitats/climates are preferred by researchers\n")
+}
+
+if("dist_to_city_scaled" %in% count_model_predictors) {
+  cat("2. **Identify accessibility bias**: Distance to cities effect on sampling effort\n")
+}
+
+if("dist_from_equator" %in% count_model_predictors) {
+  cat("3. **Assess latitudinal patterns**: How sampling varies with latitude\n")
+}
+
+if("dist_from_coast_km" %in% count_model_predictors) {
+  cat("4. **Evaluate coastal vs. interior sampling**: East-west sampling gradients\n")
+}
+
+cat("5. **Map sampling bias**: Model residuals show over-sampled vs under-sampled areas relative to available predictors\n")
+cat("6. **Guide future sampling**: Target under-sampled regions identified by model predictions\n\n")
+
+if(length(missing_count) > 0) {
+  cat("**Limitation**: Due to incomplete covariate data, the model ")
+  if(!"dist_to_city_scaled" %in% count_model_predictors) {
+    cat("cannot assess accessibility bias (distance to cities) ")
+  }
+  if(!"dist_from_equator" %in% count_model_predictors && !"dist_from_coast_km" %in% count_model_predictors) {
+    cat("or geographic gradients ")
+  }
+  cat("and should be interpreted as a preliminary environmental bias assessment.\n\n")
+}
+```
 
 Models were fitted using a *`r modeling_summary$model_type`* distribution to account for overdispersion (dispersion parameter = *`r round(modeling_summary$overdispersion, 2)`*).
 
