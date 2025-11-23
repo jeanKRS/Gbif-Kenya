@@ -398,8 +398,6 @@ By achieving these objectives, we provide both a thorough assessment of Kenya's 
 
 ## Data Acquisition and Cleaning
 
-```
-
 <div style="background-color: #e3f2fd; border-left: 4px solid #2196F3; padding: 12px 15px; margin: 15px 0; border-radius: 4px;">
 <strong>📚 LEARNING NOTE:</strong> We're loading pre-computed results here for the Methods description.<br>
 <strong>➡️  To see HOW these objects are created from raw GBIF data, click below:</strong>
@@ -511,6 +509,7 @@ create_interactive_table(
     description = "Summary statistics calculated from quality-filtered GBIF data"
   )
 )
+```
 
 <a id="pipeline-summary-stats"></a>
 
@@ -2638,9 +2637,9 @@ kable(rarity_table, caption = "Table 11: Distribution of species by rarity class
 # Extract count model summary
 count_model_summary <- model_summaries %>%
   filter(model == "Count Model", term != "(Intercept)")
-
 # Diagnostic: Check what predictors are in the model
 cat(sprintf("\nModel summary contains %d predictor(s):\n", nrow(count_model_summary)))
+
 if (nrow(count_model_summary) > 0) {
   cat(paste("  -", count_model_summary$term, collapse = "\n"))
   cat("\n")
