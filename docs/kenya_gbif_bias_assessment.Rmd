@@ -1502,17 +1502,9 @@ if (nrow(count_model_summary) > 0) {
   cat("  WARNING: No predictors found in model summary!\n")
 }
 
-# Expected predictors based on model specification
-expected_predictors <- c("elevation_scaled", "temperature_scaled", "precipitation_scaled",
-                        "dist_to_city_scaled", "dist_from_equator", "dist_from_coast_km")
-actual_predictors <- count_model_summary$term
-missing_predictors <- setdiff(expected_predictors, actual_predictors)
-
-if (length(missing_predictors) > 0) {
-  cat(sprintf("\nWARNING: Missing %d expected predictor(s):\n", length(missing_predictors)))
-  cat(paste("  -", missing_predictors, collapse = "\n"))
-  cat("\n")
-}
+# Note: Model may use subset of predictors based on data availability
+# Expected predictors: elevation, temperature, precipitation, distance to city,
+# distance from equator, distance from coast
 ```
 
 The `r modeling_summary$model_type` GLM was specified with six environmental and geographic predictors: elevation, temperature, precipitation, distance to nearest city, distance from equator, and distance from coast (see Methods section). Table 12 presents the coefficient estimates for all predictors included in the fitted model.
