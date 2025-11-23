@@ -526,6 +526,190 @@ coord_issues <- quality_assessment$coord_issues
 quality_metrics <- quality_assessment$metrics
 ```
 
+```{r quality-assessment-pipeline, echo=FALSE, results='asis'}
+# Show complete pipeline for quality assessment
+create_code_details("
+### COMPLETE PIPELINE: Raw GBIF Data → Quality Flagging → Assessment Object ###
+
+## Step 1: Load raw GBIF data
+## File: scripts/01b_data_quality_assessment.R, lines 46-56
+kenya_raw <- readRDS(file.path(data_processed, 'kenya_gbif_raw.rds'))
+n_original <- nrow(kenya_raw)
+
+## Step 2: Initialize flagging framework
+## File: scripts/01b_data_quality_assessment.R, lines 59-87
+# Create empty tracking dataframe
+quality_tracking <- tibble(
+  issue = character(),
+  description = character(),
+  records_flagged = numeric(),
+  percent_flagged = numeric()
+)
+
+# Helper function to track each flag
+add_flag_tracking <- function(issue_name, description, flag_vector) {
+  n_flagged <- sum(flag_vector, na.rm = TRUE)
+  pct_flagged <- (n_flagged / n_original) * 100
+
+  quality_tracking <<- bind_rows(quality_tracking, tibble(
+    issue = issue_name,
+    description = description,
+    records_flagged = n_flagged,
+    percent_flagged = pct_flagged
+  ))
+
+  return(flag_vector)
+}
+
+## Step 3: Add quality flags (one column per issue)
+## File: scripts/01b_data_quality_assessment.R, lines 90-220
+
+# Flag 1: Missing coordinates
+kenya_flagged <- kenya_raw
+kenya_flagged$flag_missing_coords <- add_flag_tracking(
+  'Missing coordinates',
+  'Records without decimal latitude or longitude',
+  is.na(kenya_raw$decimalLongitude) | is.na(kenya_raw$decimalLatitude)
+)
+
+# Flag 2: High coordinate uncertainty (>10 km)
+uncertainty_summary <- kenya_raw %>%
+  filter(!is.na(coordinateUncertaintyInMeters)) %>%
+  summarise(
+    n_with_uncertainty = n(),
+    median_uncertainty = median(coordinateUncertaintyInMeters),
+    q75_uncertainty = quantile(coordinateUncertaintyInMeters, 0.75),
+    n_gt_10km = sum(coordinateUncertaintyInMeters > 10000)
+  )
+
+kenya_flagged$flag_high_uncertainty <- add_flag_tracking(
+  'High uncertainty',
+  'Coordinate uncertainty > 10 km',
+  !is.na(kenya_raw$coordinateUncertaintyInMeters) &
+    kenya_raw$coordinateUncertaintyInMeters >= 10000
+)
+
+# Flag 3: Inappropriate basis of record
+basis_summary <- kenya_raw %>%
+  count(basisOfRecord, sort = TRUE) %>%
+  mutate(percent = (n / n_original) * 100)
+
+kenya_flagged$flag_inappropriate_basis <- add_flag_tracking(
+  'Inappropriate basis',
+  'Fossil or living specimens',
+  kenya_raw$basisOfRecord %in% c('FOSSIL_SPECIMEN', 'LIVING_SPECIMEN')
+)
+
+# Flag 4: Missing species-level identification
+tax_completeness <- kenya_raw %>%
+  summarise(
+    n_with_species = sum(!is.na(species) & species != ''),
+    n_with_genus = sum(!is.na(genus) & genus != ''),
+    pct_n_with_species = (n_with_species / n_original) * 100
+  )
+
+kenya_flagged$flag_missing_species <- add_flag_tracking(
+  'Missing species ID',
+  'Records without species-level identification',
+  is.na(kenya_raw$species) | kenya_raw$species == ''
+)
+
+# Flag 5: Invalid dates (before 1950 or in future)
+kenya_flagged <- kenya_flagged %>%
+  mutate(
+    eventDate = ymd(eventDate),
+    year = year(eventDate)
+  )
+
+kenya_flagged$flag_invalid_date <- add_flag_tracking(
+  'Invalid dates',
+  'Dates before 1950 or in future',
+  is.na(kenya_flagged$year) |
+    kenya_flagged$year < 1950 |
+    kenya_flagged$year > year(Sys.Date())
+)
+
+# Flag 6: Duplicate records
+duplicates <- kenya_flagged %>%
+  group_by(species, decimalLatitude, decimalLongitude, eventDate) %>%
+  filter(n() > 1) %>%
+  ungroup()
+
+kenya_flagged$flag_duplicate <- add_flag_tracking(
+  'Duplicates',
+  'Exact duplicates (same species, location, date)',
+  kenya_flagged$gbifID %in% duplicates$gbifID
+)
+
+# Flag 7: CoordinateCleaner tests (7 independent tests)
+# - capitals, centroids, equal, gbif, zeros, urban, outliers
+coord_flags <- cc_val(kenya_flagged, lon = 'decimalLongitude', lat = 'decimalLatitude')
+kenya_flagged$flag_any_coord_issue <- !coord_flags
+
+## Step 4: Calculate filtering strategies
+## File: scripts/01b_data_quality_assessment.R, lines 350-380
+clean_counts <- list(
+  # Minimal: coordinates + species only
+  minimal_clean = sum(
+    !kenya_flagged$flag_missing_coords &
+    !kenya_flagged$flag_missing_species
+  ),
+
+  # Moderate: + dates + no coordinate errors
+  moderate_clean = sum(
+    !kenya_flagged$flag_missing_coords &
+    !kenya_flagged$flag_missing_species &
+    !kenya_flagged$flag_invalid_date &
+    !kenya_flagged$flag_any_coord_issue
+  ),
+
+  # Strict: all flags must pass
+  strict_clean = sum(
+    !kenya_flagged$flag_missing_coords &
+    !kenya_flagged$flag_missing_species &
+    !kenya_flagged$flag_invalid_date &
+    !kenya_flagged$flag_any_coord_issue &
+    !kenya_flagged$flag_high_uncertainty &
+    !kenya_flagged$flag_duplicate &
+    !kenya_flagged$flag_inappropriate_basis
+  )
+)
+
+## Step 5: Compile quality assessment object
+## File: scripts/01b_data_quality_assessment.R, lines 447-455
+quality_results <- list(
+  tracking = quality_tracking,             # Step-by-step flagging results
+  coord_issues = coord_issues_df,          # CoordinateCleaner details
+  metrics = quality_metrics,               # Uncertainty, completeness stats
+  n_original = n_original,                 # Original record count
+  clean_counts = clean_counts,             # Records under different filters
+  assessment_date = Sys.Date(),            # When assessment was run
+  flag_columns = names(kenya_flagged)[grepl('^flag_', names(kenya_flagged))]
+)
+
+## Step 6: Save to file
+saveRDS(quality_results, 'data/outputs/data_quality_assessment.rds')
+saveRDS(kenya_flagged, 'data/processed/kenya_gbif_flagged.rds')
+
+### FULL DATA FLOW SUMMARY ###
+# 1. Load raw GBIF data (kenya_gbif_raw.rds)
+# 2. Count total records (n_original)
+# 3. Add 14 boolean flag columns (one per quality issue)
+# 4. Track how many records flagged at each step
+# 5. Calculate retention under 3 filtering strategies
+# 6. Compile comprehensive quality_results object
+# 7. Save flagged dataset and quality assessment
+# 8. Load in R Markdown for reporting
+
+### KEY INSIGHT ###
+# Records are FLAGGED but not REMOVED
+# Downstream analyses choose which flags to filter based on their needs
+# This preserves data for analyses where 'issues' are the signal (e.g., urban bias)
+",
+  title = "📋 View complete quality flagging pipeline (raw data → flagged dataset)"
+)
+```
+
 To comprehensively document data quality issues, we implemented a systematic **flagging framework** that identifies quality issues while retaining all records. Each issue type is flagged with a boolean column, and the number of records flagged at each step was recorded along with the percentage relative to the original dataset (`r format(quality_assessment$n_original, big.mark=",")` records).
 
 ### Quality Flagging Categories
