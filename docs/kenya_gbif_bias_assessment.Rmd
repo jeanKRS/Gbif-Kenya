@@ -1153,20 +1153,55 @@ kable(rarity_table, caption = "Table 11: Distribution of species by rarity class
 ## Predictors of Sampling Effort
 
 ```{r model-results}
+# Extract count model summary
 count_model_summary <- model_summaries %>%
   filter(model == "Count Model", term != "(Intercept)")
+
+# Diagnostic: Check what predictors are in the model
+cat(sprintf("\nModel summary contains %d predictor(s):\n", nrow(count_model_summary)))
+if (nrow(count_model_summary) > 0) {
+  cat(paste("  -", count_model_summary$term, collapse = "\n"))
+  cat("\n")
+} else {
+  cat("  WARNING: No predictors found in model summary!\n")
+}
+
+# Expected predictors based on model specification
+expected_predictors <- c("elevation_scaled", "temperature_scaled", "precipitation_scaled",
+                        "dist_to_city_scaled", "dist_from_equator", "dist_from_coast_km")
+actual_predictors <- count_model_summary$term
+missing_predictors <- setdiff(expected_predictors, actual_predictors)
+
+if (length(missing_predictors) > 0) {
+  cat(sprintf("\nWARNING: Missing %d expected predictor(s):\n", length(missing_predictors)))
+  cat(paste("  -", missing_predictors, collapse = "\n"))
+  cat("\n")
+}
 ```
 
-The `r modeling_summary$model_type` GLM revealed significant predictors of sampling effort (Table 12). Distance to cities was the strongest predictor, with sampling effort decreasing significantly with increasing distance from urban centers (β = `r round(count_model_summary$estimate[count_model_summary$term == "dist_to_city_scaled"], 3)`, p < 0.001).
+The `r modeling_summary$model_type` GLM was specified with six environmental and geographic predictors: elevation, temperature, precipitation, distance to nearest city, distance from equator, and distance from coast (see Methods section). Table 12 presents the coefficient estimates for all predictors included in the fitted model.
 
 ```{r model-coefficients-table}
+# Create clean, descriptive predictor names
+predictor_name_map <- c(
+  "elevation_scaled" = "Elevation (scaled)",
+  "temperature_scaled" = "Temperature (scaled)",
+  "precipitation_scaled" = "Precipitation (scaled)",
+  "dist_to_city_scaled" = "Distance to City (scaled)",
+  "dist_from_equator" = "Distance from Equator (degrees)",
+  "dist_from_coast_km" = "Distance from Coast (km)"
+)
+
+# Format coefficients table with proper names
 coef_table <- count_model_summary %>%
   mutate(
-    term = str_remove(term, "_scaled"),
-    term = str_replace_all(term, "_", " "),
-    term = str_to_title(term)
+    # Use explicit name mapping for clarity and consistency
+    Predictor = ifelse(term %in% names(predictor_name_map),
+                      predictor_name_map[term],
+                      # Fallback: clean up the term name
+                      str_to_title(str_replace_all(str_remove(term, "_scaled"), "_", " ")))
   ) %>%
-  dplyr::select(Predictor = term, Estimate = estimate, `Std. Error` = std.error,
+  dplyr::select(Predictor, Estimate = estimate, `Std. Error` = std.error,
          `Z value` = statistic, `P-value` = p.value) %>%
   mutate(
     Estimate = round(Estimate, 4),
@@ -1175,10 +1210,13 @@ coef_table <- count_model_summary %>%
     `P-value` = format.pval(`P-value`, eps = 0.001)
   )
 
+# Display table
 kable(coef_table,
-      caption = "Table 12: Coefficients from negative binomial GLM predicting sampling effort",
-      booktabs = TRUE) %>%
-  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+      caption = "Table 12: Coefficients from negative binomial GLM predicting sampling effort. The model includes environmental variables (elevation, temperature, precipitation) and geographic variables (distance to cities, distance from equator, distance from coast). All continuous predictors were scaled (mean-centered, unit variance) except distance from equator and coast. Significant negative coefficient for distance to city indicates sampling decreases with distance from urban areas.",
+      booktabs = TRUE,
+      align = c("l", "r", "r", "r", "r")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE)
 ```
 
 ```{r fig-coefficients, fig.cap="Coefficient plot showing predictors of sampling effort with 95% confidence intervals. Points right of zero indicate positive effects, left indicate negative effects."}
