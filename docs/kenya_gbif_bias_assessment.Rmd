@@ -658,7 +658,7 @@ knitr::include_graphics(here("figures", "coordinate_issues_breakdown.png"))
 tax_complete <- quality_metrics$taxonomic_completeness
 ```
 
-Taxonomic identification completeness varied across hierarchical levels (Table 4). While nearly all records had kingdom-level classification (`r round(tax_complete$pct_n_with_kingdom, 1)`%), species-level identification was present in `r round(tax_complete$pct_n_with_species, 1)`% of records in the pre-filtered dataset.
+Taxonomic identification completeness varied across hierarchical levels (Table 4). While nearly all records had kingdom-level classification (`r round(tax_complete$pct_n_with_kingdom, 1)`%), species-level identification was present in `r round(tax_complete$pct_n_with_species, 1)`% of records in the original dataset.
 
 ```{r taxonomic-completeness-table}
 # Create taxonomic completeness table
@@ -699,9 +699,10 @@ Among records that included coordinate uncertainty information, the median uncer
 
 ```{r duplicates}
 dup_info <- quality_metrics$duplicate_info
+pct_duplicates <- 100 * dup_info$n_duplicate_records / n_original
 ```
 
-The duplicate detection identified **`r format(dup_info$n_duplicate_records, big.mark=",")`** duplicate records organized into **`r format(dup_info$n_duplicate_sets, big.mark=",")`** unique sets of duplicates, representing **`r round(dup_info$percent_duplicates, 1)`%** of the original dataset. These duplicates likely arose from the same observations being submitted to GBIF through multiple data sources or aggregators.
+The duplicate detection identified **`r format(dup_info$n_duplicate_records, big.mark=",")`** duplicate records organized into **`r format(dup_info$n_duplicate_sets, big.mark=",")`** unique sets of duplicates, representing **`r round(pct_duplicates, 1)`%** of the original dataset. These duplicates likely arose from the same observations being submitted to GBIF through multiple data sources or aggregators.
 
 ### Basis of Record
 
@@ -953,11 +954,11 @@ Coordinate quality issues arise from multiple sources:
 
 ### Duplicates and Data Aggregation
 
-The identification of `r format(dup_info$n_duplicate_records, big.mark=",")` duplicate records (`r round(dup_info$percent_duplicates, 1)`%) reflects GBIF's role as a data aggregator. The same biological observation may be shared by multiple institutions or appear in multiple datasets, necessitating duplicate detection. However, distinguishing true duplicates from legitimate repeated observations at the same location requires careful consideration of dates, collectors, and metadata.
+The identification of `r format(dup_info$n_duplicate_records, big.mark=",")` duplicate records (`r round(pct_duplicates, 1)`%) reflects GBIF's role as a data aggregator. The same biological observation may be shared by multiple institutions or appear in multiple datasets, necessitating duplicate detection. However, distinguishing true duplicates from legitimate repeated observations at the same location requires careful consideration of dates, collectors, and metadata.
 
 ### Taxonomic Identification Completeness
 
-While GBIF enforces kingdom-level classification, species-level identification varied considerably. Approximately `r round(100 - tax_complete$pct_n_with_species, 1)`% of records lacked species-level identification before filtering. This reflects:
+While GBIF enforces kingdom-level classification, species-level identification varied considerably. Approximately `r round(100 - tax_complete$pct_n_with_species, 1)`% of records in the original dataset lacked species-level identification. This reflects:
 
 - Identification difficulties in the field
 - Specimens awaiting expert determination
