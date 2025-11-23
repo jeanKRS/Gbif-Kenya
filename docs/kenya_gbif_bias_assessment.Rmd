@@ -339,12 +339,9 @@ By achieving these objectives, we provide both a thorough assessment of Kenya's 
 # Load flagged data (with quality flags, not filtered)
 kenya_flagged <- readRDS(file.path(data_processed, "kenya_gbif_flagged.rds"))
 
-# Also load metadata
+# Load metadata and summary statistics
 metadata <- readRDS(file.path(data_processed, "metadata.rds"))
 summary_stats <- readRDS(file.path(data_processed, "summary_stats.rds"))
-
-# Load flagged dataset with all quality flags
-kenya_flagged <- readRDS(file.path(data_processed, "kenya_gbif_flagged.rds"))
 ```
 
 ### Data Download
@@ -442,17 +439,80 @@ create_interactive_table(
 
 # Show the source code in a collapsible block
 create_code_details("
-# Data loaded from quality assessment pipeline
-summary_stats <- readRDS('data/outputs/summary_statistics.rds')
-kenya_flagged <- readRDS('data/processed/kenya_gbif_flagged.rds')
+### COMPLETE PIPELINE: GBIF Download → Quality Filtering → Summary Statistics ###
 
-# Summary table combines:
-# - Record counts after quality filtering (from 01b_data_quality_assessment.R)
-# - Taxonomic diversity metrics (calculated during data processing)
-# - Temporal range (year_min to year_max from date fields)
-# - Spatial uncertainty (median coordinateUncertaintyInMeters)
+## Step 1: Download GBIF data for Kenya
+## File: scripts/01_data_download.R, lines 40-60
+kenya_download <- occ_download(
+  pred('country', 'KE'),
+  pred('hasCoordinate', TRUE),
+  pred('hasGeospatialIssue', FALSE),
+  format = 'SIMPLE_CSV'
+)
+
+## Step 2: Load and initial filtering
+## File: scripts/01_data_download.R, lines 80-120
+kenya_raw <- occ_download_get(kenya_download) %>%
+  occ_download_import() %>%
+  filter(
+    !is.na(decimalLatitude),
+    !is.na(decimalLongitude),
+    !is.na(species)
+  )
+
+## Step 3: Apply CoordinateCleaner tests
+## File: scripts/01_data_download.R, lines 150-180
+kenya_clean <- clean_coordinates(
+  kenya_raw,
+  lon = 'decimalLongitude',
+  lat = 'decimalLatitude',
+  tests = c('capitals', 'centroids', 'equal', 'gbif', 'zeros', 'urban')
+)
+
+## Step 4: Calculate summary statistics
+## File: scripts/01_data_download.R, lines 267-279
+summary_stats <- kenya_final %>%
+  summarise(
+    n_records = n(),
+    n_species = n_distinct(species),
+    n_genera = n_distinct(genus),
+    n_families = n_distinct(family),
+    n_orders = n_distinct(order),
+    n_classes = n_distinct(class),
+    n_phyla = n_distinct(phylum),
+    year_min = min(year, na.rm = TRUE),
+    year_max = max(year, na.rm = TRUE),
+    coord_uncertainty_median = median(coordinateUncertaintyInMeters, na.rm = TRUE)
+  )
+
+## Step 5: Quality flagging (separate script)
+## File: scripts/01b_data_quality_assessment.R
+kenya_flagged <- kenya_clean %>%
+  mutate(
+    flag_missing_coords = is.na(decimalLatitude) | is.na(decimalLongitude),
+    flag_high_uncertainty = coordinateUncertaintyInMeters > 10000,
+    flag_missing_species = is.na(species),
+    flag_invalid_date = year < 1950 | year > year(Sys.Date()),
+    # ... additional quality flags
+  )
+
+## Step 6: Create interactive summary table (in R Markdown)
+## File: docs/kenya_gbif_bias_assessment.Rmd, lines 411-441
+summary_table <- data.frame(
+  Metric = c('Analyzed Records', 'Original Records', 'Species', 'Genera', ...),
+  Value = c(summary_stats$n_records, nrow(kenya_flagged), ...)
+)
+
+create_interactive_table(summary_table, ...)
+
+### FULL DATA FLOW SUMMARY ###
+# GBIF API → kenya_gbif_raw.rds (01_data_download.R)
+#          → kenya_gbif_clean.rds (after CoordinateCleaner)
+#          → summary_stats.rds (biodiversity metrics)
+#          → kenya_gbif_flagged.rds (01b_data_quality_assessment.R)
+#          → Interactive DT table (kenya_gbif_bias_assessment.Rmd)
 ",
-  title = "View data pipeline for this table"
+  title = "📋 View complete code pipeline (GBIF download → summary table)"
 )
 ```
 
@@ -1318,25 +1378,85 @@ if (!is.null(temporal_summary) && "temporal_stats" %in% names(temporal_summary))
       description = "Temporal statistics aggregated by year, showing trends in data accumulation over time"
     )
 
-    # Add collapsible code showing the data aggregation
+    # Add collapsible code showing COMPLETE pipeline from R scripts
     create_code_details("
-# Temporal aggregation performed in 03_temporal_bias.R
-temporal_stats <- kenya_clean %>%
+### COMPLETE PIPELINE: Raw Data → Temporal Statistics → Interactive Chart ###
+
+## Step 1: Load cleaned data (from 01_data_download.R)
+## File: scripts/03_temporal_bias.R, lines 26-28
+kenya_data <- readRDS(file.path(data_processed, 'kenya_gbif_clean.rds'))
+
+## Step 2: Aggregate data by year
+## File: scripts/03_temporal_bias.R, lines 34-45
+temporal_summary <- kenya_data %>%
   filter(!is.na(year)) %>%
   group_by(year) %>%
-  summarize(
+  summarise(
     n_records = n(),
     n_species = n_distinct(species),
+    n_genera = n_distinct(genus),
     n_families = n_distinct(family),
+    n_collectors = n_distinct(recordedBy, na.rm = TRUE),
     .groups = 'drop'
+  ) %>%
+  arrange(year)
+
+## Step 3: Calculate overall temporal statistics
+## File: scripts/03_temporal_bias.R, lines 48-60
+temporal_stats <- temporal_summary %>%
+  summarise(
+    year_min = min(year),
+    year_max = max(year),
+    year_range = year_max - year_min,
+    total_years = n_distinct(year),
+    mean_records_per_year = mean(n_records),
+    median_records_per_year = median(n_records),
+    sd_records_per_year = sd(n_records),
+    cv_records = sd_records_per_year / mean_records_per_year,
+    mean_species_per_year = mean(n_species),
+    median_species_per_year = median(n_species)
   )
 
-# Mann-Kendall trend test
+## Step 4: Test for temporal trends (Mann-Kendall)
+## File: scripts/03_temporal_bias.R, lines 68-83
 library(Kendall)
-mk_records <- MannKendall(temporal_stats$n_records)
-mk_species <- MannKendall(temporal_stats$n_species)
+mk_records <- MannKendall(temporal_summary$n_records)
+mk_species <- MannKendall(temporal_summary$n_species)
+
+trend_tests <- data.frame(
+  variable = c('n_records', 'n_species'),
+  tau = c(mk_records$tau, mk_species$tau),
+  p_value = c(mk_records$sl, mk_species$sl),
+  trend = c(
+    ifelse(mk_records$sl < 0.05,
+           ifelse(mk_records$tau > 0, 'Increasing', 'Decreasing'),
+           'No trend'),
+    ifelse(mk_species$sl < 0.05,
+           ifelse(mk_species$tau > 0, 'Increasing', 'Decreasing'),
+           'No trend')
+  )
+)
+
+## Step 5: Create interactive visualization (in this R Markdown)
+## File: docs/kenya_gbif_bias_assessment.Rmd, lines 1237-1303
+library(plotly)
+fig <- plot_ly(temporal_data) %>%
+  add_trace(
+    x = ~year, y = ~n_records,
+    name = 'Records', type = 'scatter', mode = 'lines+markers'
+  ) %>%
+  add_trace(
+    x = ~year, y = ~n_species,
+    name = 'Species', yaxis = 'y2', type = 'scatter', mode = 'lines+markers'
+  )
+
+### FULL DATA FLOW SUMMARY ###
+# 01_data_download.R → kenya_gbif_clean.rds (cleaned occurrence records)
+# 03_temporal_bias.R → temporal_summary (records/species by year)
+# 03_temporal_bias.R → trend_tests (statistical tests for trends)
+# kenya_gbif_bias_assessment.Rmd → Interactive plotly visualization
 ",
-      title = "View temporal aggregation code"
+      title = "📋 View complete code pipeline (R scripts → results)"
     )
   }
 }
