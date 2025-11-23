@@ -1,8 +1,8 @@
 ---
 title: "Comprehensive Data Quality Assessment and Bias Analysis of GBIF Biodiversity Data in Kenya"
 author:
-  - name: "Research Team"
-    affiliation: "Biodiversity Research Institute"
+  - name: "Kwizera Jean"
+    affiliation: "Kwiz Computing Technologies Limited"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
   html_document:
