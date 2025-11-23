@@ -172,14 +172,22 @@ message("Downloading elevation data...")
 elevation_data <- elevation_30s(country = "KEN", path = tempdir())
 elevation <- if (is.character(elevation_data)) terra::rast(elevation_data) else elevation_data
 
-# Extract elevation values - terra::extract returns data.frame with ID column + data columns
-elev_extracted <- terra::extract(elevation, kenya_coords)
-# Check structure and extract values properly
-if (ncol(elev_extracted) >= 2) {
-  # Has ID + data column(s), take second column (first data column)
-  elevation_values <- elev_extracted[[2]]
+# Extract elevation values - use vect() for proper sf to terra conversion
+message(sprintf("Extracting elevation for %d occurrence points...", nrow(kenya_coords)))
+elev_extracted <- terra::extract(elevation, kenya_coords, ID = FALSE)
+
+# elev_extracted should be a data.frame with just the elevation values
+# Check if we got data
+if (is.null(elev_extracted) || nrow(elev_extracted) == 0) {
+  stop("Elevation extraction failed - no data returned")
+}
+
+# Get the first (and likely only) column of elevation data
+if (is.data.frame(elev_extracted)) {
+  elevation_values <- elev_extracted[[1]]
 } else {
-  stop("Elevation extraction failed - no data columns returned")
+  # If it's a vector, use directly
+  elevation_values <- as.vector(elev_extracted)
 }
 
 # Get climate data
@@ -187,16 +195,17 @@ message("Downloading climate data...")
 climate_data <- worldclim_country(country = "KEN", var = "bio", path = tempdir())
 climate <- if (is.character(climate_data)) terra::rast(climate_data) else climate_data
 
-# Extract climate values
-temp_extracted <- terra::extract(climate[[1]], kenya_coords)
-precip_extracted <- terra::extract(climate[[12]], kenya_coords)
+# Extract climate values (ID = FALSE excludes the ID column)
+message("Extracting climate data for occurrence points...")
+temp_extracted <- terra::extract(climate[[1]], kenya_coords, ID = FALSE)
+precip_extracted <- terra::extract(climate[[12]], kenya_coords, ID = FALSE)
 
 # Extract environmental values into data frame
 kenya_data_env <- kenya_data %>%
   mutate(
     elevation = elevation_values,
-    bio1_temp = temp_extracted[[2]],  # Second column has the data
-    bio12_precip = precip_extracted[[2]]  # Second column has the data
+    bio1_temp = temp_extracted[[1]],  # First (and only) column has the data
+    bio12_precip = precip_extracted[[1]]  # First (and only) column has the data
   )
 
 # Calculate distance to nearest record for each grid cell
@@ -427,16 +436,17 @@ set.seed(123)
 background_points <- st_sample(kenya_boundary, size = 10000) %>%
   st_coordinates()
 
-# Extract environmental values for background
-bg_elev_extracted <- terra::extract(elevation, background_points)
-bg_temp_extracted <- terra::extract(climate[[1]], background_points)
-bg_precip_extracted <- terra::extract(climate[[12]], background_points)
+# Extract environmental values for background (ID = FALSE excludes ID column)
+message("Extracting environmental data for background points...")
+bg_elev_extracted <- terra::extract(elevation, background_points, ID = FALSE)
+bg_temp_extracted <- terra::extract(climate[[1]], background_points, ID = FALSE)
+bg_precip_extracted <- terra::extract(climate[[12]], background_points, ID = FALSE)
 
 bg_env <- data.frame(
   type = "available",
-  elevation = bg_elev_extracted[[2]],  # Second column has the data
-  temperature = bg_temp_extracted[[2]],
-  precipitation = bg_precip_extracted[[2]]
+  elevation = bg_elev_extracted[[1]],  # First (and only) column has the data
+  temperature = bg_temp_extracted[[1]],
+  precipitation = bg_precip_extracted[[1]]
 )
 
 # Environmental values for occurrences
