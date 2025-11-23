@@ -1342,4 +1342,4 @@ Please open an issue or submit a pull request on the project repository.
 
 **Document Version**: 1.0
 **Last Updated**: 2025-11-23
-**Maintainer**: Kwizera Jean (Kwiz Computing Technologies Limited)
+**Maintainer**: Kwiz Computing Technologies
