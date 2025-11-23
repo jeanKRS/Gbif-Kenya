@@ -174,20 +174,29 @@ elevation <- if (is.character(elevation_data)) terra::rast(elevation_data) else 
 
 # Extract elevation values - terra::extract returns data.frame with ID column + data columns
 elev_extracted <- terra::extract(elevation, kenya_coords)
-# Take all columns except the first (ID column) and ensure it's a vector
-elevation_values <- as.vector(elev_extracted[, -1, drop = TRUE])
+# Check structure and extract values properly
+if (ncol(elev_extracted) >= 2) {
+  # Has ID + data column(s), take second column (first data column)
+  elevation_values <- elev_extracted[[2]]
+} else {
+  stop("Elevation extraction failed - no data columns returned")
+}
 
 # Get climate data
 message("Downloading climate data...")
 climate_data <- worldclim_country(country = "KEN", var = "bio", path = tempdir())
 climate <- if (is.character(climate_data)) terra::rast(climate_data) else climate_data
 
-# Extract environmental values into data frame - ensure all are vectors
+# Extract climate values
+temp_extracted <- terra::extract(climate[[1]], kenya_coords)
+precip_extracted <- terra::extract(climate[[12]], kenya_coords)
+
+# Extract environmental values into data frame
 kenya_data_env <- kenya_data %>%
   mutate(
     elevation = elevation_values,
-    bio1_temp = as.vector(terra::extract(climate[[1]], kenya_coords)[, -1, drop = TRUE]),
-    bio12_precip = as.vector(terra::extract(climate[[12]], kenya_coords)[, -1, drop = TRUE])
+    bio1_temp = temp_extracted[[2]],  # Second column has the data
+    bio12_precip = precip_extracted[[2]]  # Second column has the data
   )
 
 # Calculate distance to nearest record for each grid cell
@@ -418,12 +427,16 @@ set.seed(123)
 background_points <- st_sample(kenya_boundary, size = 10000) %>%
   st_coordinates()
 
-# Extract environmental values for background - ensure all are vectors
+# Extract environmental values for background
+bg_elev_extracted <- terra::extract(elevation, background_points)
+bg_temp_extracted <- terra::extract(climate[[1]], background_points)
+bg_precip_extracted <- terra::extract(climate[[12]], background_points)
+
 bg_env <- data.frame(
   type = "available",
-  elevation = as.vector(terra::extract(elevation, background_points)[, -1, drop = TRUE]),
-  temperature = as.vector(terra::extract(climate[[1]], background_points)[, -1, drop = TRUE]),
-  precipitation = as.vector(terra::extract(climate[[12]], background_points)[, -1, drop = TRUE])
+  elevation = bg_elev_extracted[[2]],  # Second column has the data
+  temperature = bg_temp_extracted[[2]],
+  precipitation = bg_precip_extracted[[2]]
 )
 
 # Environmental values for occurrences
