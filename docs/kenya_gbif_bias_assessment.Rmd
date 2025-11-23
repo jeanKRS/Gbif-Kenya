@@ -1219,6 +1219,101 @@ temp_bias <- env_bias %>% filter(variable == "Temperature")
 precip_bias <- env_bias %>% filter(variable == "Precipitation")
 ```
 
+```{r environmental-bias-pipeline, echo=FALSE, results='asis'}
+# Show complete code pipeline for environmental bias calculation
+create_code_details("
+### COMPLETE PIPELINE: Environmental Data → Bias Tests → Results ###
+
+## Step 1: Sample available environmental space (background)
+## File: scripts/02_spatial_bias.R, lines 432-449
+set.seed(123)
+background_points <- st_sample(kenya_boundary, size = 10000) %>%
+  st_coordinates()
+
+# Extract environmental values for random background points
+bg_elev_extracted <- terra::extract(elevation, background_points)
+bg_temp_extracted <- terra::extract(climate[[1]], background_points)
+bg_precip_extracted <- terra::extract(climate[[12]], background_points)
+
+# Create background environmental data frame
+bg_env <- data.frame(
+  type = 'available',
+  elevation = bg_elev_extracted[[ncol(bg_elev_extracted)]],
+  temperature = bg_temp_extracted[[ncol(bg_temp_extracted)]],
+  precipitation = bg_precip_extracted[[ncol(bg_precip_extracted)]]
+)
+
+## Step 2: Extract environmental values at occurrence locations
+## File: scripts/02_spatial_bias.R, lines 452-456
+occ_env <- kenya_data_env %>%
+  dplyr::select(elevation, temperature = bio1_temp, precipitation = bio12_precip) %>%
+  filter(!is.na(elevation)) %>%
+  mutate(type = 'sampled')
+
+## Step 3: Combine sampled vs available for comparison
+## File: scripts/02_spatial_bias.R, lines 458-461
+env_comparison <- bind_rows(
+  occ_env %>% dplyr::select(type, elevation, temperature, precipitation),
+  bg_env %>% filter(!is.na(elevation))
+)
+
+## Step 4: Kolmogorov-Smirnov tests for each variable
+## File: scripts/02_spatial_bias.R, lines 464-477
+env_tests <- list(
+  elevation = ks.test(
+    occ_env$elevation,
+    bg_env$elevation[!is.na(bg_env$elevation)]
+  ),
+  temperature = ks.test(
+    occ_env$temperature[!is.na(occ_env$temperature)],
+    bg_env$temperature[!is.na(bg_env$temperature)]
+  ),
+  precipitation = ks.test(
+    occ_env$precipitation[!is.na(occ_env$precipitation)],
+    bg_env$precipitation[!is.na(bg_env$precipitation)]
+  )
+)
+
+## Step 5: Extract test statistics into tidy dataframe
+## File: scripts/02_spatial_bias.R, lines 479-486
+env_bias_summary <- map_df(names(env_tests), ~{
+  tibble(
+    variable = .x,
+    D_statistic = env_tests[[.x]]$statistic,
+    p_value = env_tests[[.x]]$p.value,
+    significant = p_value < 0.05
+  )
+})
+
+## Step 6: Load in R Markdown and extract specific tests
+## File: docs/kenya_gbif_bias_assessment.Rmd, lines 1217-1219
+elev_bias <- env_bias %>% filter(variable == 'Elevation')
+temp_bias <- env_bias %>% filter(variable == 'Temperature')
+precip_bias <- env_bias %>% filter(variable == 'Precipitation')
+
+### FULL DATA FLOW SUMMARY ###
+# 1. Load environmental rasters (elevation, climate)
+# 2. Sample 10,000 random background points from Kenya
+# 3. Extract environmental values at background points (available space)
+# 4. Extract environmental values at occurrence locations (sampled space)
+# 5. Run Kolmogorov-Smirnov two-sample tests
+#    - Null hypothesis: Sampled and available distributions are the same
+#    - Rejection indicates environmental bias in sampling
+# 6. Extract D-statistic (max difference between CDFs) and p-value
+# 7. Use in text to report bias for each environmental variable
+
+### WHAT THE RESULTS MEAN ###
+# D_statistic: Maximum vertical distance between cumulative distribution functions
+#   - Range: 0 (identical) to 1 (completely different)
+#   - Higher D = stronger bias
+# p_value: Probability of observing this D under null hypothesis
+#   - p < 0.05: Significant bias detected
+#   - p < 0.001: Highly significant bias
+",
+  title = "📋 View complete environmental bias calculation (from rasters to KS tests)"
+)
+```
+
 1. **Elevation Bias** (D = `r round(elev_bias$D_statistic, 3)`, p < 0.001):
    - Sampled locations are biased toward mid-elevations (1000-2500m)
    - Under-representation of both low-elevation coastal zones and high-elevation mountains
