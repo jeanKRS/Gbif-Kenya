@@ -3,7 +3,7 @@ title: "Comprehensive Data Quality Assessment and Bias Analysis of GBIF Biodiver
 author:
   - name: "Kwizera Jean"
     affiliation: "Kwiz Computing Technologies Limited"
-date: "`r format(Sys.Date(), '%B %d, %Y')`"
+date: "*`r format(Sys.Date(), '%B %d, %Y')`*"
 output:
   html_document:
     toc: true
@@ -104,6 +104,63 @@ create_code_details <- function(code, title = "View source code", language = "r"
     htmltools::htmlEscape(code),
     '</code></pre>',
     '</details>'
+  )
+
+  HTML(html_content)
+}
+
+# Creates a beautiful card for code pipeline documentation
+create_pipeline_card <- function(code, title = "Code Pipeline", icon = "🔬",
+                                 subtitle = NULL, language = "r") {
+  html_content <- paste0(
+    '<div style="
+      margin: 25px 0;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08);
+      overflow: hidden;
+      border: 1px solid #e1e4e8;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    ">',
+    '<div style="
+      padding: 20px 25px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    ">',
+    '<div style="display: flex; align-items: center; gap: 12px;">',
+    '<span style="font-size: 32px;">', icon, '</span>',
+    '<div>',
+    '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: white;">', title, '</h3>',
+    if(!is.null(subtitle)) paste0('<p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.95; color: #f0f0f0;">', subtitle, '</p>') else '',
+    '</div>',
+    '</div>',
+    '</div>',
+    '<details style="margin: 0;">',
+    '<summary style="
+      cursor: pointer;
+      padding: 15px 25px;
+      background-color: #f6f8fa;
+      font-weight: 600;
+      color: #24292e;
+      border-top: 1px solid #e1e4e8;
+      transition: background-color 0.2s;
+    " onmouseover="this.style.backgroundColor=\'#e1e4e8\'" onmouseout="this.style.backgroundColor=\'#f6f8fa\'">',
+    '📖 Click to view complete source code',
+    '</summary>',
+    '<div style="background-color: #ffffff; padding: 0;">',
+    '<pre style="
+      background-color: #f6f8fa;
+      padding: 20px 25px;
+      margin: 0;
+      overflow-x: auto;
+      border-top: 1px solid #e1e4e8;
+      font-size: 13px;
+      line-height: 1.6;
+    "><code class="language-', language, '">',
+    htmltools::htmlEscape(code),
+    '</code></pre>',
+    '</div>',
+    '</details>',
+    '</div>'
   )
 
   HTML(html_content)
@@ -230,9 +287,9 @@ gini_records <- diversity_metrics$value[diversity_metrics$metric == "Gini_record
 
 **Objectives:** We conducted a comprehensive assessment of data quality issues and systematic biases in GBIF occurrence data for Kenya, quantifying all quality filters applied during data cleaning and analyzing spatial, temporal, and taxonomic biases using reproducible R-based workflows.
 
-**Methods:** We downloaded `r format(quality_assessment$n_original, big.mark=",")` occurrence records from GBIF for Kenya and implemented a systematic quality **flagging** framework that identified and documented seven major quality issues: missing coordinates, high coordinate uncertainty (>10 km), inappropriate basis of record, missing species identification, invalid dates, duplicates, and coordinate quality flags. Critically, our approach **flags** quality issues rather than automatically removing records, allowing each downstream analysis to apply filters appropriate to its specific requirements. We assessed spatial bias using grid-based analyses, environmental space coverage, and spatial autocorrelation. Temporal bias was evaluated through trend analyses and completeness metrics. Taxonomic bias was quantified using diversity indices and species accumulation curves. We used generalized linear models (GLMs) and generalized additive models (GAMs) to identify environmental and geographic predictors of sampling effort.
+**Methods:** We downloaded *`r format(quality_assessment$n_original, big.mark=",")`* occurrence records from GBIF for Kenya and implemented a systematic quality **flagging** framework that identified and documented seven major quality issues: missing coordinates, high coordinate uncertainty (>10 km), inappropriate basis of record, missing species identification, invalid dates, duplicates, and coordinate quality flags. Critically, our approach **flags** quality issues rather than automatically removing records, allowing each downstream analysis to apply filters appropriate to its specific requirements. We assessed spatial bias using grid-based analyses, environmental space coverage, and spatial autocorrelation. Temporal bias was evaluated through trend analyses and completeness metrics. Taxonomic bias was quantified using diversity indices and species accumulation curves. We used generalized linear models (GLMs) and generalized additive models (GAMs) to identify environmental and geographic predictors of sampling effort.
 
-**Results:** Data quality assessment identified issues in `r format(sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0), big.mark=",")` records (`r round(100 * sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0) / nrow(kenya_flagged), 1)`%), with coordinate-related problems being most common: `r format(quality_metrics$coordinate_quality$total_coord_flags, big.mark=",")` records (`r round(quality_metrics$coordinate_quality$percent_coord_flags, 1)`%) flagged by CoordinateCleaner tests. Different analyses applied different quality filters based on their requirements: spatial bias analysis required valid coordinates and species identification but retained records near cities (the bias being measured); temporal analysis required valid dates but not coordinates; taxonomic analysis required only species identification. Under a moderate filtering strategy (coordinates, species, dates, no coordinate errors), `r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$moderate_clean / quality_assessment$n_original, 1)`%) were retained. Our bias analyses revealed significant spatial, temporal, and taxonomic biases. Sampling effort was concentrated near major cities and roads, with strong positive spatial autocorrelation (Moran's I = `r round(moran_results$morans_i, 3)`, p < 0.001). Temporal analysis showed increasing trends in data collection, with `r round(temporal_stats$cv_records, 2)` coefficient of variation in annual records. Taxonomic coverage was highly uneven, with a Gini coefficient of `r round(gini_records, 3)` for records across classes.
+**Results:** Data quality assessment identified issues in *`r format(sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0), big.mark=",")`* records (*`r round(100 * sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0) / nrow(kenya_flagged), 1)`*%), with coordinate-related problems being most common: *`r format(quality_metrics$coordinate_quality$total_coord_flags, big.mark=",")`* records (*`r round(quality_metrics$coordinate_quality$percent_coord_flags, 1)`*%) flagged by CoordinateCleaner tests. Different analyses applied different quality filters based on their requirements: spatial bias analysis required valid coordinates and species identification but retained records near cities (the bias being measured); temporal analysis required valid dates but not coordinates; taxonomic analysis required only species identification. Under a moderate filtering strategy (coordinates, species, dates, no coordinate errors), *`r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")`* records (*`r round(100 * quality_assessment$clean_counts$moderate_clean / quality_assessment$n_original, 1)`*%) were retained. Our bias analyses revealed significant spatial, temporal, and taxonomic biases. Sampling effort was concentrated near major cities and roads, with strong positive spatial autocorrelation (Moran's I = *`r round(moran_results$morans_i, 3)`*, p < 0.001). Temporal analysis showed increasing trends in data collection, with *`r round(temporal_stats$cv_records, 2)`* coefficient of variation in annual records. Taxonomic coverage was highly uneven, with a Gini coefficient of *`r round(gini_records, 3)`* for records across classes.
 
 **Conclusions:** GBIF data for Kenya exhibit substantial quality issues and multiple forms of systematic bias that must be considered in biodiversity assessments. Our flagging approach allows different analyses to apply appropriate quality filters rather than using one-size-fits-all cleaning. We provide detailed quantification of all data quality flags, document which filters each analysis applies and why, provide recommendations for targeted sampling to address identified gaps, and present a reproducible framework applicable to other regions. This flexible, transparent approach to quality assessment and bias analysis provides a template for modern biodiversity data science.
 
@@ -346,7 +403,7 @@ summary_stats <- readRDS(file.path(data_processed, "summary_stats.rds"))
 
 ### Data Download
 
-We downloaded species occurrence data for Kenya from GBIF using the `rgbif` package [@chamberlain2023]. The download (DOI: `r metadata$gbif_doi`) was performed on `r metadata$download_date` using GBIF's API. We applied basic filters at the download stage to exclude obviously problematic records:
+We downloaded species occurrence data for Kenya from GBIF using the `rgbif` package [@chamberlain2023]. The download (DOI: *`r metadata$gbif_doi`*) was performed on *`r metadata$download_date`* using GBIF's API. We applied basic filters at the download stage to exclude obviously problematic records:
 
 - **Geographic scope**: Records within Kenya's boundaries (identified by ISO country code KE)
 - **Coordinate presence**: Only records with decimal latitude and longitude (excluding records with no georeferencing)
@@ -396,13 +453,13 @@ This flexible approach provides several advantages:
 
 ### Flagged Dataset Summary
 
-The quality-flagged dataset contains **`r format(nrow(kenya_flagged), big.mark=",")`** occurrence records (all records from the original download). Under different filtering strategies, different numbers of records are retained:
+The quality-flagged dataset contains ***`r format(nrow(kenya_flagged), big.mark=",")`*** occurrence records (all records from the original download). Under different filtering strategies, different numbers of records are retained:
 
-- **Strict filtering** (all flags pass): `r format(quality_assessment$clean_counts$strict_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$strict_clean / nrow(kenya_flagged), 1)`%)
-- **Moderate filtering** (coordinates, species, dates, no coordinate errors): `r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$moderate_clean / nrow(kenya_flagged), 1)`%)
-- **Minimal filtering** (coordinates and species only): `r format(quality_assessment$clean_counts$minimal_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$minimal_clean / nrow(kenya_flagged), 1)`%)
+- **Strict filtering** (all flags pass): *`r format(quality_assessment$clean_counts$strict_clean, big.mark=",")`* records (*`r round(100 * quality_assessment$clean_counts$strict_clean / nrow(kenya_flagged), 1)`*%)
+- **Moderate filtering** (coordinates, species, dates, no coordinate errors): *`r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")`* records (*`r round(100 * quality_assessment$clean_counts$moderate_clean / nrow(kenya_flagged), 1)`*%)
+- **Minimal filtering** (coordinates and species only): *`r format(quality_assessment$clean_counts$minimal_clean, big.mark=",")`* records (*`r round(100 * quality_assessment$clean_counts$minimal_clean / nrow(kenya_flagged), 1)`*%)
 
-The analyses in this manuscript primarily use moderate filtering, representing **`r format(summary_stats$n_species, big.mark=",")`** species from **`r format(summary_stats$n_families, big.mark=",")`** families across **`r format(summary_stats$n_classes, big.mark=",")`** classes.
+The analyses in this manuscript primarily use moderate filtering, representing ***`r format(summary_stats$n_species, big.mark=",")`*** species from ***`r format(summary_stats$n_families, big.mark=",")`*** families across ***`r format(summary_stats$n_classes, big.mark=",")`*** classes.
 
 ```{r data-summary-table}
 # Create summary table
@@ -437,8 +494,8 @@ create_interactive_table(
   )
 )
 
-# Show the source code in a collapsible block
-create_code_details("
+# Show the source code in a beautiful pipeline card
+create_pipeline_card("
 ### COMPLETE PIPELINE: GBIF Download → Quality Filtering → Summary Statistics ###
 
 ## Step 1: Download GBIF data for Kenya
@@ -512,7 +569,9 @@ create_interactive_table(summary_table, ...)
 #          → kenya_gbif_flagged.rds (01b_data_quality_assessment.R)
 #          → Interactive DT table (kenya_gbif_bias_assessment.Rmd)
 ",
-  title = "📋 View complete code pipeline (GBIF download → summary table)"
+  title = "GBIF Download → Summary Statistics Pipeline",
+  icon = "📊",
+  subtitle = "From GBIF API to interactive summary table | scripts/01_data_download.R"
 )
 ```
 
@@ -528,7 +587,7 @@ quality_metrics <- quality_assessment$metrics
 
 ```{r quality-assessment-pipeline, echo=FALSE, results='asis'}
 # Show complete pipeline for quality assessment
-create_code_details("
+create_pipeline_card("
 ### COMPLETE PIPELINE: Raw GBIF Data → Quality Flagging → Assessment Object ###
 
 ## Step 1: Load raw GBIF data
@@ -706,25 +765,27 @@ saveRDS(kenya_flagged, 'data/processed/kenya_gbif_flagged.rds')
 # Downstream analyses choose which flags to filter based on their needs
 # This preserves data for analyses where 'issues' are the signal (e.g., urban bias)
 ",
-  title = "📋 View complete quality flagging pipeline (raw data → flagged dataset)"
+  title = "Data Quality Flagging Pipeline",
+  icon = "🔍",
+  subtitle = "Raw data → Quality flags → Assessment metrics | scripts/01b_data_quality_assessment.R"
 )
 ```
 
-To comprehensively document data quality issues, we implemented a systematic **flagging framework** that identifies quality issues while retaining all records. Each issue type is flagged with a boolean column, and the number of records flagged at each step was recorded along with the percentage relative to the original dataset (`r format(quality_assessment$n_original, big.mark=",")` records).
+To comprehensively document data quality issues, we implemented a systematic **flagging framework** that identifies quality issues while retaining all records. Each issue type is flagged with a boolean column, and the number of records flagged at each step was recorded along with the percentage relative to the original dataset (*`r format(quality_assessment$n_original, big.mark=",")`* records).
 
 ### Quality Flagging Categories
 
 The quality flagging process identified seven major categories of issues:
 
-1. **Missing Coordinates:** `r sum(kenya_flagged$flag_missing_coords)` records (`r round(100*sum(kenya_flagged$flag_missing_coords)/nrow(kenya_flagged), 1)`%) lacking decimal latitude or longitude values
-2. **High Coordinate Uncertainty:** `r sum(kenya_flagged$flag_high_uncertainty, na.rm=TRUE)` records (`r round(100*sum(kenya_flagged$flag_high_uncertainty, na.rm=TRUE)/nrow(kenya_flagged), 1)`%) with coordinate uncertainty exceeding 10 km
-3. **Inappropriate Basis of Record:** `r sum(kenya_flagged$flag_inappropriate_basis)` records (`r round(100*sum(kenya_flagged$flag_inappropriate_basis)/nrow(kenya_flagged), 1)`%) representing fossil or living specimens
-4. **Missing Species Identification:** `r sum(kenya_flagged$flag_missing_species)` records (`r round(100*sum(kenya_flagged$flag_missing_species)/nrow(kenya_flagged), 1)`%) without species-level taxonomic identification
-5. **Invalid Dates:** `r sum(kenya_flagged$flag_invalid_date)` records (`r round(100*sum(kenya_flagged$flag_invalid_date)/nrow(kenya_flagged), 1)`%) with dates before 1950 or in the future
-6. **Duplicate Records:** `r sum(kenya_flagged$flag_duplicate)` records (`r round(100*sum(kenya_flagged$flag_duplicate)/nrow(kenya_flagged), 1)`%) identified as exact duplicates
-7. **Coordinate Quality Flags:** `r sum(kenya_flagged$flag_any_coord_issue)` records (`r round(100*sum(kenya_flagged$flag_any_coord_issue)/nrow(kenya_flagged), 1)`%) flagged by one or more CoordinateCleaner tests
+1. **Missing Coordinates:** *`r sum(kenya_flagged$flag_missing_coords)`* records (*`r round(100*sum(kenya_flagged$flag_missing_coords)/nrow(kenya_flagged), 1)`*%) lacking decimal latitude or longitude values
+2. **High Coordinate Uncertainty:** *`r sum(kenya_flagged$flag_high_uncertainty, na.rm=TRUE)`* records (*`r round(100*sum(kenya_flagged$flag_high_uncertainty, na.rm=TRUE)/nrow(kenya_flagged), 1)`*%) with coordinate uncertainty exceeding 10 km
+3. **Inappropriate Basis of Record:** *`r sum(kenya_flagged$flag_inappropriate_basis)`* records (*`r round(100*sum(kenya_flagged$flag_inappropriate_basis)/nrow(kenya_flagged), 1)`*%) representing fossil or living specimens
+4. **Missing Species Identification:** *`r sum(kenya_flagged$flag_missing_species)`* records (*`r round(100*sum(kenya_flagged$flag_missing_species)/nrow(kenya_flagged), 1)`*%) without species-level taxonomic identification
+5. **Invalid Dates:** *`r sum(kenya_flagged$flag_invalid_date)`* records (*`r round(100*sum(kenya_flagged$flag_invalid_date)/nrow(kenya_flagged), 1)`*%) with dates before 1950 or in the future
+6. **Duplicate Records:** *`r sum(kenya_flagged$flag_duplicate)`* records (*`r round(100*sum(kenya_flagged$flag_duplicate)/nrow(kenya_flagged), 1)`*%) identified as exact duplicates
+7. **Coordinate Quality Flags:** *`r sum(kenya_flagged$flag_any_coord_issue)`* records (*`r round(100*sum(kenya_flagged$flag_any_coord_issue)/nrow(kenya_flagged), 1)`*%) flagged by one or more CoordinateCleaner tests
 
-**Key Insight:** `r format(sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0), big.mark=",")` total records (`r round(100 * sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0) / nrow(kenya_flagged), 1)`%) have at least one quality flag, but different analyses filter different flags based on their requirements.
+**Key Insight:** *`r format(sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0), big.mark=",")`* total records (*`r round(100 * sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0) / nrow(kenya_flagged), 1)`*%) have at least one quality flag, but different analyses filter different flags based on their requirements.
 
 ### CoordinateCleaner Tests
 
@@ -757,10 +818,10 @@ This flexible approach ensures we don't remove the very biases we're trying to m
 
 Since records are flagged rather than removed, we can assess data retention under different filtering strategies:
 
-- **No filtering (all records):** `r format(nrow(kenya_flagged), big.mark=",")` records (100%)
-- **Minimal filtering** (coordinates + species only): `r format(quality_assessment$clean_counts$minimal_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$minimal_clean / nrow(kenya_flagged), 1)`%)
-- **Moderate filtering** (+ dates + coordinate errors): `r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$moderate_clean / nrow(kenya_flagged), 1)`%)
-- **Strict filtering** (all flags must pass): `r format(quality_assessment$clean_counts$strict_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$strict_clean / nrow(kenya_flagged), 1)`%)
+- **No filtering (all records):** *`r format(nrow(kenya_flagged), big.mark=",")`* records (100%)
+- **Minimal filtering** (coordinates + species only): *`r format(quality_assessment$clean_counts$minimal_clean, big.mark=",")`* records (*`r round(100 * quality_assessment$clean_counts$minimal_clean / nrow(kenya_flagged), 1)`*%)
+- **Moderate filtering** (+ dates + coordinate errors): *`r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")`* records (*`r round(100 * quality_assessment$clean_counts$moderate_clean / nrow(kenya_flagged), 1)`*%)
+- **Strict filtering** (all flags must pass): *`r format(quality_assessment$clean_counts$strict_clean, big.mark=",")`* records (*`r round(100 * quality_assessment$clean_counts$strict_clean / nrow(kenya_flagged), 1)`*%)
 
 **The analyses in this manuscript primarily use moderate filtering**, which retains records suitable for spatial and temporal bias assessment while removing clear errors. Different research questions may justify different filtering strategies - this is the advantage of the flagging approach.
 
@@ -802,7 +863,7 @@ env_bias <- spatial_summary$env_bias_summary
 ```
 
 ```{r complete-spatial-grid-pipeline, eval=FALSE, echo=FALSE, results='asis'}
-create_code_details("
+create_pipeline_card("
 ### COMPLETE PIPELINE: Spatial Grid Creation → Sampling Effort Metrics ###
 
 ## File: scripts/02_spatial_bias.R
@@ -853,12 +914,14 @@ saveRDS(kenya_grid_complete,
 # Result: spatial_grid object with columns: grid_id, geometry, n_records,
 #         n_species, log_records
 ",
-title = "View Complete Spatial Grid Creation Code",
-language = "r")
+  title = "Spatial Grid Creation Pipeline",
+  icon = "🗺️",
+  subtitle = "Hexagonal grid at ~10km resolution → sampling effort per cell | scripts/02_spatial_bias.R"
+)
 ```
 
 ```{r complete-moran-pipeline, eval=FALSE, echo=FALSE, results='asis'}
-create_code_details("
+create_pipeline_card("
 ### COMPLETE PIPELINE: Moran's I Spatial Autocorrelation Test ###
 
 ## File: scripts/02_spatial_bias.R
@@ -910,8 +973,10 @@ saveRDS(moran_results,
 # p-value tests null hypothesis of spatial randomness
 # Significant positive I indicates clustered sampling (common in biodiversity data)
 ",
-title = "View Complete Moran's I Calculation Code",
-language = "r")
+  title = "Moran's I Spatial Autocorrelation Pipeline",
+  icon = "📍",
+  subtitle = "Testing for spatial clustering in sampling effort | scripts/02_spatial_bias.R"
+)
 ```
 
 Spatial bias occurs when sampling effort is unevenly distributed across geographic space, typically concentrated in accessible areas near roads, cities, and research stations. We assessed spatial patterns using multiple complementary approaches:
@@ -1013,7 +1078,7 @@ rarity_summary <- readRDS(file.path(data_outputs, "rarity_summary.rds"))
 ```
 
 ```{r complete-class-summary-pipeline, eval=FALSE, echo=FALSE, results='asis'}
-create_code_details("
+create_pipeline_card("
 ### COMPLETE PIPELINE: Taxonomic Class Summary & Diversity Metrics ###
 
 ## File: scripts/04_taxonomic_bias.R
@@ -1085,12 +1150,14 @@ saveRDS(diversity_metrics,
 # 4. Shannon / log(n_classes) → Pielou's evenness
 # Result: class_summary (records & species per class) + diversity_metrics
 ",
-title = "View Complete Taxonomic Diversity Calculation Code",
-language = "r")
+  title = "Taxonomic Diversity & Inequality Pipeline",
+  icon = "🦋",
+  subtitle = "Class summary → Gini coefficient → diversity indices | scripts/04_taxonomic_bias.R"
+)
 ```
 
 ```{r complete-rarity-summary-pipeline, eval=FALSE, echo=FALSE, results='asis'}
-create_code_details("
+create_pipeline_card("
 ### COMPLETE PIPELINE: Species Rarity Distribution Analysis ###
 
 ## File: scripts/04_taxonomic_bias.R
@@ -1147,8 +1214,10 @@ saveRDS(rarity_summary, file.path(data_outputs, 'rarity_summary.rds'))
 # 3. Rarity classes → group_by() → count species per class
 # Result: rarity_summary showing distribution of species across rarity classes
 ",
-title = "View Complete Rarity Distribution Calculation Code",
-language = "r")
+  title = "Species Rarity Distribution Pipeline",
+  icon = "🔬",
+  subtitle = "Species counts → rarity classification → distribution analysis | scripts/04_taxonomic_bias.R"
+)
 ```
 
 Taxonomic bias occurs when certain taxonomic groups are disproportionately sampled compared to their true diversity. This is one of the most pervasive biases in biodiversity data, driven by:
@@ -1199,7 +1268,7 @@ model_summaries <- readRDS(file.path(data_outputs, "model_summaries.rds"))
 ```
 
 ```{r complete-statistical-models-pipeline, eval=FALSE, echo=FALSE, results='asis'}
-create_code_details("
+create_pipeline_card("
 ### COMPLETE PIPELINE: Statistical Models for Sampling Effort Predictors ###
 
 ## File: scripts/05_statistical_models.R
@@ -1353,8 +1422,10 @@ saveRDS(glm_binomial, file.path(data_outputs, 'final_presence_model.rds'))
 # - Distance to city typically has strongest (negative) effect
 # - Environmental effects show habitat preferences of researchers
 ",
-title = "View Complete Statistical Modeling Pipeline Code",
-language = "r")
+  title = "Statistical Modeling Pipeline (GLM/GAM)",
+  icon = "📈",
+  subtitle = "Environmental covariates → GLM fitting → predictor analysis | scripts/05_statistical_models.R"
+)
 ```
 
 To understand what environmental and geographic factors predict sampling effort, we used generalized linear models (GLMs). This allows us to move beyond description to explanation - identifying where and why sampling is concentrated.
@@ -1402,7 +1473,7 @@ Positive coefficients (β > 0) indicate increased sampling effort with increasin
 3. **Map sampling bias**: Model residuals show over-sampled (positive) vs under-sampled (negative) areas relative to environmental/geographic expectations
 4. **Guide future sampling**: Target under-sampled regions identified by model predictions
 
-Models were fitted using a `r modeling_summary$model_type` distribution to account for overdispersion (dispersion parameter = `r round(modeling_summary$overdispersion, 2)`).
+Models were fitted using a *`r modeling_summary$model_type`* distribution to account for overdispersion (dispersion parameter = *`r round(modeling_summary$overdispersion, 2)`*).
 
 # Results
 
@@ -1419,9 +1490,9 @@ retention_rate <- 100 * n_moderate_clean / n_original
 flag_rate <- 100 * n_flagged / n_original
 ```
 
-Of the **`r format(n_original, big.mark=",")`** records originally downloaded from GBIF for Kenya, our quality flagging framework identified **`r format(n_flagged, big.mark=",")`** records (`r round(flag_rate, 1)`%) with one or more quality issues. Under a moderate filtering strategy (excluding records with missing coordinates, missing species, invalid dates, or any coordinate quality issues), **`r format(n_moderate_clean, big.mark=",")`** records (`r round(retention_rate, 1)`%) would be retained for analysis (Figure 2).
+Of the ***`r format(n_original, big.mark=",")`*** records originally downloaded from GBIF for Kenya, our quality flagging framework identified ***`r format(n_flagged, big.mark=",")`*** records (*`r round(flag_rate, 1)`*%) with one or more quality issues. Under a moderate filtering strategy (excluding records with missing coordinates, missing species, invalid dates, or any coordinate quality issues), ***`r format(n_moderate_clean, big.mark=",")`*** records (*`r round(retention_rate, 1)`*%) would be retained for analysis (Figure 2).
 
-**Interpretation**: The `r round(flag_rate, 1)`% flag rate reflects the prevalence of quality issues in aggregated biodiversity data, comparable to filtering rates in other regional GBIF assessments (typically 40-95% depending on quality standards). Importantly, our flagging approach preserves all records while documenting quality issues, allowing different analyses to apply appropriate filters based on their specific requirements. For example, spatial bias assessments should retain records flagged as "near urban centers" since urban clustering is the bias being measured, while species distribution models might exclude such records. This flexible approach balances data quality with analytical needs and ensures transparency in quality control decisions.
+**Interpretation**: The *`r round(flag_rate, 1)`*% flag rate reflects the prevalence of quality issues in aggregated biodiversity data, comparable to filtering rates in other regional GBIF assessments (typically 40-95% depending on quality standards). Importantly, our flagging approach preserves all records while documenting quality issues, allowing different analyses to apply appropriate filters based on their specific requirements. For example, spatial bias assessments should retain records flagged as "near urban centers" since urban clustering is the bias being measured, while species distribution models might exclude such records. This flexible approach balances data quality with analytical needs and ensures transparency in quality control decisions.
 
 ```{r fig-quality-summary, fig.cap="Comparison of filtering strategies showing the number of records that would be retained under different quality filtering approaches (minimal, moderate, strict). This demonstrates the flexibility of the flagging framework to support different analytical requirements while preserving all records with documented quality flags."}
 knitr::include_graphics(here("figures", "data_quality_filter_levels.png"))
@@ -1473,9 +1544,9 @@ total_coord_flagged <- quality_metrics$coordinate_quality$total_coord_flags
 pct_coord_flagged <- quality_metrics$coordinate_quality$percent_coord_flags
 ```
 
-The seven CoordinateCleaner tests identified a total of **`r format(total_coord_flagged, big.mark=",")`** records with potentially problematic coordinates, representing **`r round(pct_coord_flagged, 1)`%** of the original dataset. Table 3 presents the detailed breakdown of coordinate quality issues.
+The seven CoordinateCleaner tests identified a total of ***`r format(total_coord_flagged, big.mark=",")`*** records with potentially problematic coordinates, representing ***`r round(pct_coord_flagged, 1)`*%** of the original dataset. Table 3 presents the detailed breakdown of coordinate quality issues.
 
-**Interpretation**: The `r round(pct_coord_flagged, 1)`% of records flagged for coordinate quality issues highlights a substantial problem with georeferencing accuracy in the dataset. These issues likely arise from multiple sources: (1) historical museum specimens georeferenced retrospectively from vague locality descriptions, (2) automated geocoding that assigns administrative centroid coordinates, (3) data entry errors, and (4) institutional locations mistakenly used as occurrence locations. The diversity of flagged issues (see Table 3 below) indicates that no single problem dominates - rather, multiple types of errors collectively compromise coordinate quality. Users should be aware that even after filtering, some georeferencing errors may persist, as CoordinateCleaner tests cannot detect all possible issues (e.g., coordinates that are slightly wrong but not statistical outliers).
+**Interpretation**: The *`r round(pct_coord_flagged, 1)`*% of records flagged for coordinate quality issues highlights a substantial problem with georeferencing accuracy in the dataset. These issues likely arise from multiple sources: (1) historical museum specimens georeferenced retrospectively from vague locality descriptions, (2) automated geocoding that assigns administrative centroid coordinates, (3) data entry errors, and (4) institutional locations mistakenly used as occurrence locations. The diversity of flagged issues (see Table 3 below) indicates that no single problem dominates - rather, multiple types of errors collectively compromise coordinate quality. Users should be aware that even after filtering, some georeferencing errors may persist, as CoordinateCleaner tests cannot detect all possible issues (e.g., coordinates that are slightly wrong but not statistical outliers).
 
 ```{r coord-issues-table}
 # Create formatted coordinate issues table
@@ -1503,7 +1574,7 @@ kable(coord_table,
   column_spec(2, width = "7cm")
 ```
 
-The most common coordinate quality issue was **`r top_coord_issue$test`**, affecting **`r format(top_coord_issue$records_flagged, big.mark=",")`** records (`r round(top_coord_issue$percent_of_original, 2)`% of the original dataset). Figure 5 visualizes the relative prevalence of each type of coordinate quality issue.
+The most common coordinate quality issue was ***`r top_coord_issue$test`***, affecting ***`r format(top_coord_issue$records_flagged, big.mark=",")`*** records (*`r round(top_coord_issue$percent_of_original, 2)`*% of the original dataset). Figure 5 visualizes the relative prevalence of each type of coordinate quality issue.
 
 ```{r fig-coord-issues, fig.cap="Breakdown of coordinate quality issues detected by CoordinateCleaner. Bar length indicates the number of records flagged by each test, with color intensity representing the percentage of the original dataset."}
 knitr::include_graphics(here("figures", "coordinate_issues_breakdown.png"))
@@ -1515,7 +1586,7 @@ knitr::include_graphics(here("figures", "coordinate_issues_breakdown.png"))
 tax_complete <- quality_metrics$taxonomic_completeness
 ```
 
-Taxonomic identification completeness varied across hierarchical levels (Table 4). While nearly all records had kingdom-level classification (`r round(tax_complete$pct_n_with_kingdom, 1)`%), species-level identification was present in `r round(tax_complete$pct_n_with_species, 1)`% of records in the original dataset.
+Taxonomic identification completeness varied across hierarchical levels (Table 4). While nearly all records had kingdom-level classification (*`r round(tax_complete$pct_n_with_kingdom, 1)`*%), species-level identification was present in *`r round(tax_complete$pct_n_with_species, 1)`*% of records in the original dataset.
 
 ```{r taxonomic-completeness-table}
 # Create taxonomic completeness table
@@ -1550,7 +1621,7 @@ kable(tax_complete_table,
 uncertainty <- quality_metrics$coordinate_quality$uncertainty_summary
 ```
 
-Among records that included coordinate uncertainty information, the median uncertainty was **`r format(round(uncertainty$median_uncertainty), big.mark=",")`** meters (mean = `r format(round(uncertainty$mean_uncertainty), big.mark=",")` m). The distribution of coordinate uncertainty showed that `r round((uncertainty$n_gt_10km / uncertainty$n_with_uncertainty) * 100, 1)`% of records with uncertainty data exceeded the 10 km threshold and were flagged as high uncertainty.
+Among records that included coordinate uncertainty information, the median uncertainty was ***`r format(round(uncertainty$median_uncertainty), big.mark=",")`*** meters (mean = *`r format(round(uncertainty$mean_uncertainty), big.mark=",")`* m). The distribution of coordinate uncertainty showed that *`r round((uncertainty$n_gt_10km / uncertainty$n_with_uncertainty) * 100, 1)`*% of records with uncertainty data exceeded the 10 km threshold and were flagged as high uncertainty.
 
 ### Duplicate Records
 
@@ -1559,7 +1630,7 @@ dup_info <- quality_metrics$duplicate_info
 pct_duplicates <- 100 * dup_info$n_duplicate_records / n_original
 ```
 
-The duplicate detection identified **`r format(dup_info$n_duplicate_records, big.mark=",")`** duplicate records organized into **`r format(dup_info$n_duplicate_sets, big.mark=",")`** unique sets of duplicates, representing **`r round(pct_duplicates, 1)`%** of the original dataset. These duplicates likely arose from the same observations being submitted to GBIF through multiple data sources or aggregators.
+The duplicate detection identified ***`r format(dup_info$n_duplicate_records, big.mark=",")`*** duplicate records organized into ***`r format(dup_info$n_duplicate_sets, big.mark=",")`*** unique sets of duplicates, representing ***`r round(pct_duplicates, 1)`*%** of the original dataset. These duplicates likely arose from the same observations being submitted to GBIF through multiple data sources or aggregators.
 
 ### Basis of Record
 
@@ -1570,7 +1641,7 @@ top_basis <- basis$basisOfRecord[1]
 top_basis_pct <- basis$percent[1]
 ```
 
-The most common basis of record was **`r top_basis`**, accounting for **`r round(top_basis_pct, 1)`%** of records. Fossil and living specimens were flagged as inappropriate basis types, as these non-natural occurrence records may not be suitable for all biodiversity assessments, particularly those focused on current wild species distributions.
+The most common basis of record was ***`r top_basis`***, accounting for ***`r round(top_basis_pct, 1)`*%** of records. Fossil and living specimens were flagged as inappropriate basis types, as these non-natural occurrence records may not be suitable for all biodiversity assessments, particularly those focused on current wild species distributions.
 
 ## Sensitivity Analysis: Impact of Filtering Strategies
 
@@ -1667,9 +1738,9 @@ create_function_flow(
 
 ### Key Findings from Sensitivity Analysis
 
-1. **Record Retention**: Filtering stringency substantially affects sample size, with retention rates ranging from `r sprintf("%.1f%%", sensitivity_metrics$Retention_Pct[1])` (minimal) to `r sprintf("%.1f%%", sensitivity_metrics$Retention_Pct[3])` (strict). The moderate strategy retains `r sprintf("%.1f%%", sensitivity_metrics$Retention_Pct[2])` of records.
+1. **Record Retention**: Filtering stringency substantially affects sample size, with retention rates ranging from *`r sprintf("%.1f%%", sensitivity_metrics$Retention_Pct[1])`* (minimal) to *`r sprintf("%.1f%%", sensitivity_metrics$Retention_Pct[3])`* (strict). The moderate strategy retains *`r sprintf("%.1f%%", sensitivity_metrics$Retention_Pct[2])`* of records.
 
-2. **Taxonomic Richness**: Species richness decreases with filtering stringency, from `r format(sensitivity_metrics$Species[1], big.mark=",")` species (minimal) to `r format(sensitivity_metrics$Species[3], big.mark=",")` species (strict), representing a `r sprintf("%.1f%%", 100 * (sensitivity_metrics$Species[1] - sensitivity_metrics$Species[3]) / sensitivity_metrics$Species[1])` reduction. This suggests that many rare species are represented by records with quality issues.
+2. **Taxonomic Richness**: Species richness decreases with filtering stringency, from *`r format(sensitivity_metrics$Species[1], big.mark=",")`* species (minimal) to *`r format(sensitivity_metrics$Species[3], big.mark=",")`* species (strict), representing a *`r sprintf("%.1f%%", 100 * (sensitivity_metrics$Species[1] - sensitivity_metrics$Species[3]) / sensitivity_metrics$Species[1])`* reduction. This suggests that many rare species are represented by records with quality issues.
 
 3. **Higher Taxonomic Levels**: Family and class-level richness are more robust to filtering, showing only minimal changes across strategies. This indicates that higher-level biodiversity patterns are less affected by data quality issues.
 
@@ -1689,19 +1760,19 @@ effort_summary <- spatial_summary$effort_summary
 
 ### Sampling Effort Distribution
 
-Spatial analysis revealed profound heterogeneity in sampling effort across Kenya's landscape (Figure 1). Of the **`r format(effort_summary$total_cells, big.mark=",")`** hexagonal grid cells (~10 km resolution, ~100 km² each) covering Kenya's ~580,000 km² area, only **`r format(effort_summary$cells_with_records, big.mark=",")`** (`r round(effort_summary$percent_covered, 1)`%) contained any occurrence records. This means that **`r round(100 - effort_summary$percent_covered, 1)`% of Kenya's geographic space is completely unsampled** in the GBIF database.
+Spatial analysis revealed profound heterogeneity in sampling effort across Kenya's landscape (Figure 1). Of the ***`r format(effort_summary$total_cells, big.mark=",")`*** hexagonal grid cells (~10 km resolution, ~100 km² each) covering Kenya's ~580,000 km² area, only ***`r format(effort_summary$cells_with_records, big.mark=",")`*** (*`r round(effort_summary$percent_covered, 1)`*%) contained any occurrence records. This means that ***`r round(100 - effort_summary$percent_covered, 1)`*% of Kenya's geographic space is completely unsampled** in the GBIF database.
 
 **Sampling Intensity Patterns:**
-- **Median records per sampled cell**: `r effort_summary$median_records` (indicating most sampled cells have very few records)
-- **Mean records per sampled cell**: `r round(effort_summary$mean_records, 1)` (substantially higher than median, indicating right-skewed distribution)
-- **Standard deviation**: `r round(effort_summary$sd_records, 1)` (high variance indicates extreme heterogeneity)
-- **Coefficient of variation**: `r round(100 * effort_summary$sd_records / effort_summary$mean_records, 1)`% (very high, confirming uneven sampling)
+- **Median records per sampled cell**: *`r effort_summary$median_records`* (indicating most sampled cells have very few records)
+- **Mean records per sampled cell**: *`r round(effort_summary$mean_records, 1)`* (substantially higher than median, indicating right-skewed distribution)
+- **Standard deviation**: *`r round(effort_summary$sd_records, 1)`* (high variance indicates extreme heterogeneity)
+- **Coefficient of variation**: *`r round(100 * effort_summary$sd_records / effort_summary$mean_records, 1)`*% (very high, confirming uneven sampling)
 
 **Spatial Concentration:**
-The stark difference between median (`r effort_summary$median_records`) and mean (`r round(effort_summary$mean_records, 1)`) records per cell indicates that sampling is highly concentrated in a small proportion of cells with very high record counts, while the majority of sampled cells have minimal records. This pattern is characteristic of accessibility-driven sampling, where researchers repeatedly visit the same easily accessible locations while vast areas remain unvisited.
+The stark difference between median (*`r effort_summary$median_records`*) and mean (*`r round(effort_summary$mean_records, 1)`*) records per cell indicates that sampling is highly concentrated in a small proportion of cells with very high record counts, while the majority of sampled cells have minimal records. This pattern is characteristic of accessibility-driven sampling, where researchers repeatedly visit the same easily accessible locations while vast areas remain unvisited.
 
 **Geographic Coverage Implications:**
-With less than `r round(effort_summary$percent_covered, 1)`% of Kenya's area containing any occurrence data, biodiversity assessments based on GBIF data represent a geographically limited sample. This raises critical questions about the representativeness of Kenya's biodiversity documentation, particularly for:
+With less than *`r round(effort_summary$percent_covered, 1)`*% of Kenya's area containing any occurrence data, biodiversity assessments based on GBIF data represent a geographically limited sample. This raises critical questions about the representativeness of Kenya's biodiversity documentation, particularly for:
 - Under-sampled ecosystems (arid and semi-arid lands, remote forests)
 - Range-restricted species in unsampled areas
 - Spatial biodiversity patterns and gradients
@@ -1782,7 +1853,7 @@ create_function_flow(
 
 ### Spatial Autocorrelation
 
-Sampling effort exhibited strong positive spatial autocorrelation (Moran's I = `r round(moran_results$morans_i, 3)`, p < 0.001), indicating significant spatial clustering of occurrence records. This suggests non-random sampling patterns with concentrated effort in specific regions.
+Sampling effort exhibited strong positive spatial autocorrelation (Moran's I = *`r round(moran_results$morans_i, 3)`*, p < 0.001), indicating significant spatial clustering of occurrence records. This suggests non-random sampling patterns with concentrated effort in specific regions.
 
 ```{r spatial-autocorrelation-table}
 moran_table <- data.frame(
@@ -1816,7 +1887,7 @@ precip_bias <- env_bias %>% filter(variable == "Precipitation")
 
 ```{r environmental-bias-pipeline, echo=FALSE, results='asis'}
 # Show complete code pipeline for environmental bias calculation
-create_code_details("
+create_pipeline_card("
 ### COMPLETE PIPELINE: Environmental Data → Bias Tests → Results ###
 
 ## Step 1: Sample available environmental space (background)
@@ -1905,23 +1976,25 @@ precip_bias <- env_bias %>% filter(variable == 'Precipitation')
 #   - p < 0.05: Significant bias detected
 #   - p < 0.001: Highly significant bias
 ",
-  title = "📋 View complete environmental bias calculation (from rasters to KS tests)"
+  title = "Environmental Bias Assessment Pipeline",
+  icon = "🌍",
+  subtitle = "Rasters → background sampling → KS tests → bias quantification | scripts/02_spatial_bias.R"
 )
 ```
 
-1. **Elevation Bias** (D = `r round(elev_bias$D_statistic, 3)`, p < 0.001):
+1. **Elevation Bias** (D = *`r round(elev_bias$D_statistic, 3)`*, p < 0.001):
    - Sampled locations are biased toward mid-elevations (1000-2500m)
    - Under-representation of both low-elevation coastal zones and high-elevation mountains
    - Likely driven by accessibility (major cities and roads concentrated at intermediate elevations)
    - Implications: Alpine biodiversity and coastal ecosystems are under-documented
 
-2. **Temperature Bias** (D = `r round(temp_bias$D_statistic, 3)`, p < 0.001):
+2. **Temperature Bias** (D = *`r round(temp_bias$D_statistic, 3)`*, p < 0.001):
    - Sampling concentrated in cooler, highland regions (Nairobi, central highlands)
    - Warm lowlands (northern Kenya, eastern arid zones) under-sampled
    - Creates false impression of Kenya's biodiversity being primarily temperate/highland
    - Implications: Heat-adapted species and thermal niche modeling are compromised
 
-3. **Precipitation Bias** (D = `r round(precip_bias$D_statistic, 3)`, p < 0.001):
+3. **Precipitation Bias** (D = *`r round(precip_bias$D_statistic, 3)`*, p < 0.001):
    - Mesic (moderate rainfall) areas over-sampled
    - Arid and semi-arid lands (ASALs) substantially under-represented despite covering >80% of Kenya
    - Wettest areas (western Kenya forests) also under-sampled
@@ -1959,7 +2032,7 @@ knitr::include_graphics(here("figures", "03_environmental_bias.png"))
 
 ### Temporal Trends
 
-Data collection showed a significant increasing trend over time for both number of records (Mann-Kendall τ = `r round(trend_tests$tau[trend_tests$variable == "n_records"], 3)`, p < 0.001) and number of species (Mann-Kendall τ = `r round(trend_tests$tau[trend_tests$variable == "n_species"], 3)`, p < 0.001).
+Data collection showed a significant increasing trend over time for both number of records (Mann-Kendall τ = *`r round(trend_tests$tau[trend_tests$variable == "n_records"], 3)`*, p < 0.001) and number of species (Mann-Kendall τ = *`r round(trend_tests$tau[trend_tests$variable == "n_species"], 3)`*, p < 0.001).
 
 ```{r temporal-trends-table}
 trend_table <- trend_tests %>%
@@ -2069,7 +2142,7 @@ if (!is.null(temporal_summary) && "temporal_stats" %in% names(temporal_summary))
     )
 
     # Add collapsible code showing COMPLETE pipeline from R scripts
-    create_code_details("
+    create_pipeline_card("
 ### COMPLETE PIPELINE: Raw Data → Temporal Statistics → Interactive Chart ###
 
 ## Step 1: Load cleaned data (from 01_data_download.R)
@@ -2146,7 +2219,9 @@ fig <- plot_ly(temporal_data) %>%
 # 03_temporal_bias.R → trend_tests (statistical tests for trends)
 # kenya_gbif_bias_assessment.Rmd → Interactive plotly visualization
 ",
-      title = "📋 View complete code pipeline (R scripts → results)"
+      title = "Temporal Trends Analysis Pipeline",
+      icon = "📅",
+      subtitle = "Annual aggregation → Mann-Kendall tests → interactive visualization | scripts/03_temporal_bias.R"
     )
   }
 }
@@ -2154,7 +2229,7 @@ fig <- plot_ly(temporal_data) %>%
 
 ### Temporal Completeness
 
-The temporal coverage spanned **`r temporal_stats$year_range`** years (`r temporal_stats$year_min`-`r temporal_stats$year_max`), with data available for **`r temporal_stats$total_years`** years. Temporal completeness was **`r round(gap_summary$temporal_completeness, 1)`%**, with **`r gap_summary$years_without_records`** years containing no records. The coefficient of variation for annual records was **`r round(temporal_stats$cv_records, 2)`**, indicating high inter-annual variability.
+The temporal coverage spanned ***`r temporal_stats$year_range`*** years (*`r temporal_stats$year_min`*-*`r temporal_stats$year_max`*), with data available for ***`r temporal_stats$total_years`*** years. Temporal completeness was ***`r round(gap_summary$temporal_completeness, 1)`*%**, with ***`r gap_summary$years_without_records`*** years containing no records. The coefficient of variation for annual records was ***`r round(temporal_stats$cv_records, 2)`***, indicating high inter-annual variability.
 
 ```{r temporal-summary-table}
 temporal_sum_table <- data.frame(
@@ -2195,7 +2270,7 @@ top_3_pct <- 100 * sum(top_3_classes$n_records) / sum(class_summary$n_records)
 top_10_pct <- 100 * sum(head(class_summary, 10)$n_records) / sum(class_summary$n_records)
 ```
 
-Taxonomic bias analysis revealed extreme inequality in sampling effort across taxonomic groups, representing one of the most severe biases in Kenya's GBIF data. The Gini coefficient for record distribution across classes was **`r round(gini_records, 3)`**, indicating **very high inequality** (values > 0.6 represent severe concentration; perfect equality = 0, perfect inequality = 1).
+Taxonomic bias analysis revealed extreme inequality in sampling effort across taxonomic groups, representing one of the most severe biases in Kenya's GBIF data. The Gini coefficient for record distribution across classes was ***`r round(gini_records, 3)`***, indicating **very high inequality** (values > 0.6 represent severe concentration; perfect equality = 0, perfect inequality = 1).
 
 **Quantifying Taxonomic Concentration:**
 
@@ -2206,18 +2281,18 @@ classes_with_1000_plus <- sum(class_summary$n_records >= 1000)
 classes_with_100_plus <- sum(class_summary$n_records >= 100)
 ```
 
-- **Top 3 classes** account for **`r round(top_3_pct, 1)`%** of all records
-- **Top 10 classes** account for **`r round(top_10_pct, 1)`%** of all records
-- Only **`r classes_with_1000_plus` of `r n_classes_total` classes** (`r round(100*classes_with_1000_plus/n_classes_total, 1)`%) have ≥1,000 records
-- **`r n_classes_total - classes_with_100_plus` classes** (`r round(100*(n_classes_total - classes_with_100_plus)/n_classes_total, 1)`%) have <100 records each
+- **Top 3 classes** account for ***`r round(top_3_pct, 1)`*%** of all records
+- **Top 10 classes** account for ***`r round(top_10_pct, 1)`*%** of all records
+- Only ***`r classes_with_1000_plus`* of *`r n_classes_total`* classes** (*`r round(100*classes_with_1000_plus/n_classes_total, 1)`*%) have ≥1,000 records
+- ***`r n_classes_total - classes_with_100_plus`* classes** (*`r round(100*(n_classes_total - classes_with_100_plus)/n_classes_total, 1)`*%) have <100 records each
 
 This extreme concentration means that a small number of well-studied taxonomic groups dominate the database, while the vast majority of classes are severely under-represented.
 
 **Diversity Indices:**
-- **Gini Coefficient (records)**: `r round(gini_records, 3)` (very high inequality)
-- **Gini Coefficient (species)**: `r round(gini_species, 3)` (inequality in species richness among classes)
-- **Simpson's Diversity**: `r round(simpson_records, 3)` (low evenness)
-- **Shannon's Diversity**: `r round(shannon_records, 3)` (moderate diversity but uneven distribution)
+- **Gini Coefficient (records)**: *`r round(gini_records, 3)`* (very high inequality)
+- **Gini Coefficient (species)**: *`r round(gini_species, 3)`* (inequality in species richness among classes)
+- **Simpson's Diversity**: *`r round(simpson_records, 3)`* (low evenness)
+- **Shannon's Diversity**: *`r round(shannon_records, 3)`* (moderate diversity but uneven distribution)
 
 **Taxonomic Groups Driving the Database:**
 
@@ -2230,7 +2305,7 @@ top_class_name <- top_5$class[1]
 top_class_pct <- 100 * top_5$n_records[1] / sum(class_summary$n_records)
 ```
 
-1. **`r top_class_name`**: Dominates with `r round(top_class_pct, 1)`% of all records
+1. ***`r top_class_name`***: Dominates with *`r round(top_class_pct, 1)`*% of all records
 2. **Vertebrate bias**: Birds, mammals, and reptiles collectively comprise the majority of records
 3. **Invertebrate under-representation**: Despite being the most diverse group, invertebrates (except charismatic groups like butterflies) are severely under-sampled
 4. **Plant coverage**: Vascular plants moderately well-represented, but bryophytes and fungi largely absent
@@ -2277,7 +2352,7 @@ knitr::include_graphics(here("figures", "11_lorenz_curve.png"))
 
 ### Species Rarity
 
-A substantial proportion of species were represented by very few records. **`r rarity_summary$n_species[rarity_summary$rarity_class == "Singleton (1 record)"]`** species (`r round(100*rarity_summary$prop_species[rarity_summary$rarity_class == "Singleton (1 record)"], 1)`%) were singletons (1 record), and **`r sum(rarity_summary$n_species[rarity_summary$rarity_class %in% c("Singleton (1 record)", "Doubleton (2 records)", "Very rare (3-5 records)")])`** species (`r round(100*sum(rarity_summary$prop_species[rarity_summary$rarity_class %in% c("Singleton (1 record)", "Doubleton (2 records)", "Very rare (3-5 records)")]), 1)`%) had ≤5 records.
+A substantial proportion of species were represented by very few records. ***`r rarity_summary$n_species[rarity_summary$rarity_class == "Singleton (1 record)"]`*** species (*`r round(100*rarity_summary$prop_species[rarity_summary$rarity_class == "Singleton (1 record)"], 1)`*%) were singletons (1 record), and ***`r sum(rarity_summary$n_species[rarity_summary$rarity_class %in% c("Singleton (1 record)", "Doubleton (2 records)", "Very rare (3-5 records)")])`*** species (*`r round(100*sum(rarity_summary$prop_species[rarity_summary$rarity_class %in% c("Singleton (1 record)", "Doubleton (2 records)", "Very rare (3-5 records)")]), 1)`*%) had ≤5 records.
 
 ```{r rarity-table}
 rarity_table <- rarity_summary %>%
@@ -2317,7 +2392,7 @@ if (nrow(count_model_summary) > 0) {
 # distance from equator, distance from coast
 ```
 
-The `r modeling_summary$model_type` GLM was specified with six environmental and geographic predictors: elevation, temperature, precipitation, distance to nearest city, distance from equator, and distance from coast (see Methods section). Table 12 presents the coefficient estimates for all predictors included in the fitted model.
+The *`r modeling_summary$model_type`* GLM was specified with six environmental and geographic predictors: elevation, temperature, precipitation, distance to nearest city, distance from equator, and distance from coast (see Methods section). Table 12 presents the coefficient estimates for all predictors included in the fitted model.
 
 ```{r model-coefficients-table}
 # Create clean, descriptive predictor names
@@ -2390,7 +2465,7 @@ knitr::include_graphics(here("figures", "22_sampling_bias_map.png"))
 
 ## Data Quality Issues
 
-Our comprehensive quality flagging framework identified quality issues in `r round(flag_rate, 1)`% of the original GBIF records for Kenya. This substantial flag rate underscores the importance of rigorous quality control in biodiversity data workflows and highlights several key insights about our innovative flagging approach:
+Our comprehensive quality flagging framework identified quality issues in *`r round(flag_rate, 1)`*% of the original GBIF records for Kenya. This substantial flag rate underscores the importance of rigorous quality control in biodiversity data workflows and highlights several key insights about our innovative flagging approach:
 
 ### Transparency in Data Quality Reporting
 
@@ -2403,7 +2478,7 @@ Most studies using GBIF data report only final cleaned dataset sizes, without qu
 
 ### Coordinate Quality as a Primary Issue
 
-Coordinate-related issues represented a major source of data quality problems. Among records evaluated at the coordinate validation stage, `r format(quality_metrics$coordinate_quality$total_coord_flags, big.mark=",")` records (`r round(quality_metrics$coordinate_quality$percent_coord_flags, 1)`%) were flagged by CoordinateCleaner tests. The most prevalent coordinate issue was `r top_coord_issue$test`, affecting `r round(top_coord_issue$percent_of_original, 2)`% of original records. These findings align with previous studies [@zizka2019] showing that georeferencing errors are widespread in biodiversity databases.
+Coordinate-related issues represented a major source of data quality problems. Among records evaluated at the coordinate validation stage, *`r format(quality_metrics$coordinate_quality$total_coord_flags, big.mark=",")`* records (*`r round(quality_metrics$coordinate_quality$percent_coord_flags, 1)`*%) were flagged by CoordinateCleaner tests. The most prevalent coordinate issue was *`r top_coord_issue$test`*, affecting *`r round(top_coord_issue$percent_of_original, 2)`*% of original records. These findings align with previous studies [@zizka2019] showing that georeferencing errors are widespread in biodiversity databases.
 
 Coordinate quality issues arise from multiple sources:
 
@@ -2414,11 +2489,11 @@ Coordinate quality issues arise from multiple sources:
 
 ### Duplicates and Data Aggregation
 
-The identification of `r format(dup_info$n_duplicate_records, big.mark=",")` duplicate records (`r round(pct_duplicates, 1)`%) reflects GBIF's role as a data aggregator. The same biological observation may be shared by multiple institutions or appear in multiple datasets, necessitating duplicate detection. However, distinguishing true duplicates from legitimate repeated observations at the same location requires careful consideration of dates, collectors, and metadata.
+The identification of *`r format(dup_info$n_duplicate_records, big.mark=",")`* duplicate records (*`r round(pct_duplicates, 1)`*%) reflects GBIF's role as a data aggregator. The same biological observation may be shared by multiple institutions or appear in multiple datasets, necessitating duplicate detection. However, distinguishing true duplicates from legitimate repeated observations at the same location requires careful consideration of dates, collectors, and metadata.
 
 ### Taxonomic Identification Completeness
 
-While GBIF enforces kingdom-level classification, species-level identification varied considerably. Approximately `r round(100 - tax_complete$pct_n_with_species, 1)`% of records in the original dataset lacked species-level identification. This reflects:
+While GBIF enforces kingdom-level classification, species-level identification varied considerably. Approximately *`r round(100 - tax_complete$pct_n_with_species, 1)`*% of records in the original dataset lacked species-level identification. This reflects:
 
 - Identification difficulties in the field
 - Specimens awaiting expert determination
@@ -2446,7 +2521,7 @@ Our analysis revealed strong spatial biases in GBIF data for Kenya, consistent w
 2. **Species distribution models** trained on biased data may produce unreliable predictions
 3. **Biodiversity hotspot** identification may be confounded with sampling hotspots
 
-The strong positive spatial autocorrelation (Moran's I = `r round(moran_results$morans_i, 3)`) indicates that nearby locations have similar sampling intensity, reflecting clustered sampling efforts rather than biological patterns.
+The strong positive spatial autocorrelation (Moran's I = *`r round(moran_results$morans_i, 3)`*) indicates that nearby locations have similar sampling intensity, reflecting clustered sampling efforts rather than biological patterns.
 
 ## Temporal Bias
 
@@ -2456,7 +2531,7 @@ Temporal patterns show increasing data availability over time, particularly afte
 - Increased citizen science participation (e.g., eBird, iNaturalist)
 - Improved data sharing infrastructure
 
-However, the high coefficient of variation (`r round(temporal_stats$cv_records, 2)`) and temporal gaps indicate inconsistent sampling effort across years. This temporal bias can:
+However, the high coefficient of variation (*`r round(temporal_stats$cv_records, 2)`*) and temporal gaps indicate inconsistent sampling effort across years. This temporal bias can:
 
 - Confound trend analyses of biodiversity change
 - Limit detection of phenological shifts
@@ -2464,13 +2539,13 @@ However, the high coefficient of variation (`r round(temporal_stats$cv_records, 
 
 ## Taxonomic Bias
 
-Taxonomic coverage is highly uneven, with a Gini coefficient of `r round(gini_records, 3)` indicating strong concentration of records in few classes. This reflects well-known biases favoring:
+Taxonomic coverage is highly uneven, with a Gini coefficient of *`r round(gini_records, 3)`* indicating strong concentration of records in few classes. This reflects well-known biases favoring:
 
 - **Charismatic megafauna** (birds, mammals)
 - **Economically important groups** (agricultural pests/beneficials)
 - **Groups with active hobbyist communities** (butterflies, birds)
 
-The high proportion of singleton species (`r round(100*rarity_summary$prop_species[rarity_summary$rarity_class == "Singleton (1 record)"], 1)`%) may reflect:
+The high proportion of singleton species (*`r round(100*rarity_summary$prop_species[rarity_summary$rarity_class == "Singleton (1 record)"], 1)`*%) may reflect:
 
 - True rarity
 - Identification errors
@@ -2499,9 +2574,9 @@ Our analysis has several limitations:
 Kenya's data quality and bias patterns are not unique but reflect broader global patterns in biodiversity data. However, the severity and specific manifestations provide important regional insights:
 
 **Comparison with Global Patterns:**
-- **Quality issues**: Our ~`r round(flag_rate, 1)`% flag rate is comparable to other tropical regions (40-95% depending on standards applied)
-- **Spatial bias**: Strong urban clustering (Moran's I = `r round(moran_results$morans_i, 3)`) is typical but particularly pronounced in Kenya
-- **Taxonomic bias**: Gini coefficient of `r round(gini_records, 3)` indicates very high inequality, exceeding many temperate regions
+- **Quality issues**: Our ~*`r round(flag_rate, 1)`*% flag rate is comparable to other tropical regions (40-95% depending on standards applied)
+- **Spatial bias**: Strong urban clustering (Moran's I = *`r round(moran_results$morans_i, 3)`*) is typical but particularly pronounced in Kenya
+- **Taxonomic bias**: Gini coefficient of *`r round(gini_records, 3)`* indicates very high inequality, exceeding many temperate regions
 - **Environmental bias**: Under-sampling of arid lands is acute in Kenya despite ASALs covering >80% of the country
 
 **Kenya-Specific Challenges:**
@@ -2648,18 +2723,18 @@ This comprehensive assessment of GBIF biodiversity data for Kenya reveals substa
 
 ### Data Quality
 
-Our systematic flagging framework documented quality issues in **`r round(flag_rate, 1)`%** of the original **`r format(quality_assessment$n_original, big.mark=",")`** occurrence records. The most prevalent issues were:
-- **Coordinate quality problems**: `r round(quality_metrics$coordinate_quality$percent_coord_flags, 1)`% of records flagged by CoordinateCleaner tests
-- **Missing species identification**: `r round(100*sum(kenya_flagged$flag_missing_species)/nrow(kenya_flagged), 1)`% of records
-- **High coordinate uncertainty**: `r round(100*sum(kenya_flagged$flag_high_uncertainty, na.rm=TRUE)/nrow(kenya_flagged), 1)`% exceeding 10 km threshold
+Our systematic flagging framework documented quality issues in ***`r round(flag_rate, 1)`*%** of the original ***`r format(quality_assessment$n_original, big.mark=",")`*** occurrence records. The most prevalent issues were:
+- **Coordinate quality problems**: *`r round(quality_metrics$coordinate_quality$percent_coord_flags, 1)`*% of records flagged by CoordinateCleaner tests
+- **Missing species identification**: *`r round(100*sum(kenya_flagged$flag_missing_species)/nrow(kenya_flagged), 1)`*% of records
+- **High coordinate uncertainty**: *`r round(100*sum(kenya_flagged$flag_high_uncertainty, na.rm=TRUE)/nrow(kenya_flagged), 1)`*% exceeding 10 km threshold
 
 Critically, our **flagging approach** (rather than automatic filtering) preserves all records while documenting issues, enabling different analyses to apply quality filters appropriate to their specific requirements. This methodological innovation addresses a major gap in biodiversity data science.
 
 ### Spatial Bias
 
 Spatial analysis revealed extreme geographic concentration:
-- **`r round(100 - effort_summary$percent_covered, 1)`% of Kenya's area** contains no GBIF records
-- **Strong positive spatial autocorrelation** (Moran's I = `r round(moran_results$morans_i, 3)`, p < 0.001) indicating clustered sampling
+- ***`r round(100 - effort_summary$percent_covered, 1)`*% of Kenya's area** contains no GBIF records
+- **Strong positive spatial autocorrelation** (Moran's I = *`r round(moran_results$morans_i, 3)`*, p < 0.001) indicating clustered sampling
 - **Significant environmental bias** across elevation, temperature, and precipitation gradients (all p < 0.001)
 - **Accessibility drives sampling**: Distance to cities is the strongest predictor of sampling effort
 
@@ -2669,18 +2744,18 @@ These patterns indicate that GBIF data represent a geographically and environmen
 
 Temporal patterns show:
 - **Strong increasing trend** in data collection (Mann-Kendall τ > 0.6, p < 0.001)
-- **High inter-annual variability** (CV = `r round(temporal_stats$cv_records, 2)`)
+- **High inter-annual variability** (CV = *`r round(temporal_stats$cv_records, 2)`*)
 - **Recent dominance**: Most data collected after 2000, limiting long-term trend analysis
-- **Temporal gaps**: `r gap_summary$years_without_records` years with no data
+- **Temporal gaps**: *`r gap_summary$years_without_records`* years with no data
 
 This temporal concentration complicates efforts to distinguish genuine biodiversity change from increased data collection.
 
 ### Taxonomic Bias
 
 Taxonomic analysis revealed severe inequality:
-- **Gini coefficient** of `r round(gini_records, 3)` indicates extreme concentration
-- **Top `r length(top_3_classes$class)` classes** account for `r round(top_3_pct, 1)`% of all records
-- **`r round(100*rarity_summary$prop_species[rarity_summary$rarity_class == "Singleton (1 record)"], 1)`% of species** are singletons (1 record each)
+- **Gini coefficient** of *`r round(gini_records, 3)`* indicates extreme concentration
+- **Top *`r length(top_3_classes$class)`* classes** account for *`r round(top_3_pct, 1)`*% of all records
+- ***`r round(100*rarity_summary$prop_species[rarity_summary$rarity_class == "Singleton (1 record)"], 1)`*% of species** are singletons (1 record each)
 - **Vertebrate bias**: Birds, mammals, and reptiles dominate despite being taxonomically minor
 
 This taxonomic bias grossly misrepresents Kenya's true biodiversity, which is dominated numerically by invertebrates, fungi, and microorganisms.
@@ -2711,7 +2786,7 @@ Most studies address either quality OR bias, but not both. We provide an integra
 ### 3. Comprehensive Documentation: State of Kenya's Biodiversity Data
 
 We provide the first complete characterization of:
-- **What we know**: `r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")` quality-filtered records of `r format(summary_stats$n_species, big.mark=",")` species
+- **What we know**: *`r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")`* quality-filtered records of *`r format(summary_stats$n_species, big.mark=",")`* species
 - **What's missing**: Spatial, environmental, temporal, and taxonomic gaps
 - **Why it matters**: Specific implications for different applications (SDMs, conservation, research)
 - **What to do**: Concrete recommendations for data users, collectors, and platforms
@@ -2801,7 +2876,7 @@ Biodiversity data are imperfect, biased, and incomplete—but they are also inva
 4. **Fill the gaps** through strategic, targeted sampling efforts
 5. **Improve data quality** through better protocols, training, and technology
 
-For Kenya specifically, this assessment provides a baseline and roadmap. The baseline: **`r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")`** quality-filtered occurrence records representing **`r format(summary_stats$n_species, big.mark=",")`** species—a substantial achievement, but geographically, environmentally, and taxonomically limited. The roadmap: **specific priorities** for where to sample (northern Kenya, arid lands), what to sample (invertebrates, fungi), and how to sample (systematic surveys, molecular methods).
+For Kenya specifically, this assessment provides a baseline and roadmap. The baseline: ***`r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")`*** quality-filtered occurrence records representing ***`r format(summary_stats$n_species, big.mark=",")`*** species—a substantial achievement, but geographically, environmentally, and taxonomically limited. The roadmap: **specific priorities** for where to sample (northern Kenya, arid lands), what to sample (invertebrates, fungi), and how to sample (systematic surveys, molecular methods).
 
 As GBIF continues to grow—now exceeding 2 billion records globally—regular quality and bias assessments become increasingly important. Data volume does not guarantee data quality or representativeness. We advocate for:
 
@@ -2817,7 +2892,7 @@ This study demonstrates that comprehensive, reproducible biodiversity data asses
 
 All data and code are openly available:
 
-- **GBIF Data:** `r metadata$gbif_doi`
+- **GBIF Data:** *`r metadata$gbif_doi`*
 - **Analysis Code:** GitHub repository: [github.com/username/gbif-kenya-bias](https://github.com/username/gbif-kenya-bias)
 - **Processed Data:** Zenodo DOI: [to be assigned upon publication]
 
