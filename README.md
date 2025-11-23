@@ -390,7 +390,7 @@ kenya_grid <- st_make_grid(
 If you use this code or analysis framework, please cite:
 
 ```
-[Authors] (2025). Spatial, Temporal, and Taxonomic Bias Assessment of GBIF
+Kwiz Computing Technologies (2025). Spatial, Temporal, and Taxonomic Bias Assessment of GBIF
 Biodiversity Data in Kenya. GitHub repository:
 https://github.com/username/Gbif-Kenya
 

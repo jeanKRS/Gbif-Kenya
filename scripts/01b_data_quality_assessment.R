@@ -1,7 +1,7 @@
 # ==============================================================================
 # Script: 01b_data_quality_assessment.R
 # Purpose: Comprehensive data quality assessment with flagging (not filtering)
-# Author: Automated Research Pipeline
+# Author: Kwiz Computing Technologies
 # Date: 2025-11-22
 # ==============================================================================
 # This script identifies and FLAGS all data quality issues without removing

@@ -1,6 +1,6 @@
 # ==============================================================================
 # Utility Functions for GBIF Kenya Bias Assessment
-# Author: Automated Research Pipeline
+# Author: Kwiz Computing Technologies
 # Date: 2025-11-10
 # ==============================================================================
 

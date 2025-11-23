@@ -1,7 +1,7 @@
 # ==============================================================================
 # Script: Install Required R Packages
 # Purpose: Install all packages needed for GBIF Kenya bias assessment
-# Author: Automated Research Pipeline
+# Author: Kwiz Computing Technologies
 # Date: 2025-11-10
 # ==============================================================================
 

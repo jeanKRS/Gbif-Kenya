@@ -1,7 +1,7 @@
 # ==============================================================================
 # Script: 05_statistical_models.R
 # Purpose: Statistical modeling of sampling bias predictors
-# Author: Automated Research Pipeline
+# Author: Kwiz Computing Technologies
 # Date: 2025-11-10
 # ==============================================================================
 

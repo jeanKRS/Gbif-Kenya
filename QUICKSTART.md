@@ -291,7 +291,7 @@ kenya_download <- occ_download(
 If you use this workflow, please cite:
 
 ```
-[Authors] (2025). Spatial, Temporal, and Taxonomic Bias Assessment of
+Kwiz Computing Technologies (2025). Spatial, Temporal, and Taxonomic Bias Assessment of
 GBIF Biodiversity Data in Kenya. GitHub: https://github.com/username/Gbif-Kenya
 
 GBIF data citation:

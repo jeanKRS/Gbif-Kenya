@@ -1,7 +1,7 @@
 # ==============================================================================
 # Script: 01_data_download.R
 # Purpose: Download and clean GBIF occurrence data for Kenya
-# Author: Automated Research Pipeline
+# Author: Kwiz Computing Technologies
 # Date: 2025-11-10
 # ==============================================================================
 

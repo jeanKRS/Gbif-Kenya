@@ -1,7 +1,7 @@
 # ==============================================================================
 # Script: 03_temporal_bias.R
 # Purpose: Assess temporal biases in GBIF data for Kenya
-# Author: Automated Research Pipeline
+# Author: Kwiz Computing Technologies
 # Date: 2025-11-10
 # ==============================================================================
 
