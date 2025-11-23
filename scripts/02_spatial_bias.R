@@ -164,15 +164,14 @@ if (file.exists(file.path(data_outputs, "spatial_autocorrelation.rds"))) {
 message("\n=== Assessing accessibility bias ===")
 
 # Extract environmental values for occurrences
-kenya_coords <- kenya_data %>%
-  select(decimalLongitude, decimalLatitude) %>%
-  as.matrix()
+# Use st_coordinates to get clean coordinate matrix without column names
+kenya_coords <- st_coordinates(kenya_occurrences)
 
 # Download environmental data for Kenya
 message("Downloading elevation data...")
 elevation_data <- elevation_30s(country = "KEN", path = tempdir())
 elevation <- if (is.character(elevation_data)) terra::rast(elevation_data) else elevation_data
-elevation_values = terra::extract(elevation, kenya_coords)[, 1]
+elevation_values <- terra::extract(elevation, kenya_coords)[, 2]  # Column 2 has values, column 1 is ID
 
 # Get climate data
 message("Downloading climate data...")
@@ -182,9 +181,9 @@ climate <- if (is.character(climate_data)) terra::rast(climate_data) else climat
 # Extract environmental values into data frame
 kenya_data_env <- kenya_data %>%
   mutate(
-    elevation = elevation_values,  # Column 2 contains values
-    bio1_temp = terra::extract(climate[[1]], kenya_coords)[, 1],  # Annual mean temp
-    bio12_precip = terra::extract(climate[[12]], kenya_coords)[, 1]  # Annual precip
+    elevation = elevation_values,
+    bio1_temp = terra::extract(climate[[1]], kenya_coords)[, 2],  # Column 2 has values, column 1 is ID
+    bio12_precip = terra::extract(climate[[12]], kenya_coords)[, 2]  # Column 2 has values, column 1 is ID
   )
 
 # Calculate distance to nearest record for each grid cell
@@ -411,14 +410,13 @@ message("\n=== Assessing environmental bias ===")
 set.seed(123)
 background_points <- st_sample(kenya_boundary, size = 10000) %>%
   st_coordinates()
-elevation_values = terra::extract(elevation, background_points)[, 1]
 
 # Extract environmental values for background
 bg_env <- data.frame(
   type = "available",
-  elevation = elevation_values,
-  temperature = terra::extract(climate[[1]], background_points)[, 1],
-  precipitation = terra::extract(climate[[12]], background_points)[, 1]
+  elevation = terra::extract(elevation, background_points)[, 2],  # Column 2 has values
+  temperature = terra::extract(climate[[1]], background_points)[, 2],
+  precipitation = terra::extract(climate[[12]], background_points)[, 2]
 )
 
 # Environmental values for occurrences
