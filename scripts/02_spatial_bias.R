@@ -211,11 +211,14 @@ kenya_grid_complete <- kenya_grid_complete %>%
 message("\n=== Running occAssess assessments ===")
 
 # Prepare data for occAssess with taxonomic levels (data.frame format required)
+# Note: kenya_data is a regular data.frame (not sf object), so this should work
 kenya_df <- kenya_data %>%
   select(species, genus, family, order, class, phylum, kingdom,
          decimalLongitude, decimalLatitude, coordinateUncertaintyInMeters,
-         eventDate, year) %>%
-  as.data.frame()
+         eventDate, year)
+
+# Ensure it's a plain data.frame (not tibble or other class)
+kenya_df <- as.data.frame(kenya_df)
 
 # Create 10-year period breaks
 year_range <- range(kenya_df$year, na.rm = TRUE)
