@@ -69,6 +69,38 @@ data_outputs <- here("data", "outputs")
 figures_dir <- here("figures")
 
 # Load all data needed for abstract and inline R code
+# Check if required data files exist
+required_files <- c(
+  file.path(data_outputs, "data_quality_assessment.rds"),
+  file.path(data_processed, "kenya_gbif_flagged.rds"),
+  file.path(data_outputs, "spatial_bias_summary.rds"),
+  file.path(data_outputs, "temporal_bias_summary.rds"),
+  file.path(data_outputs, "taxonomic_bias_summary.rds")
+)
+
+missing_files <- !sapply(required_files, file.exists)
+
+if (any(missing_files)) {
+  stop("\n\n========================================\n",
+       "ERROR: Required data files are missing!\n",
+       "========================================\n\n",
+       "The following files do not exist:\n",
+       paste("  -", required_files[missing_files], collapse = "\n"), "\n\n",
+       "These files are created by running the analysis pipeline.\n\n",
+       "To generate all required data files, run:\n\n",
+       "  cd ", here(), "\n",
+       "  Rscript run_all_analyses.R\n\n",
+       "This will:\n",
+       "  1. Download GBIF data for Kenya\n",
+       "  2. Perform quality assessment\n",
+       "  3. Conduct spatial, temporal, and taxonomic bias analyses\n",
+       "  4. Fit statistical models\n",
+       "  5. Generate all figures and tables\n",
+       "  6. Render this R Markdown document\n\n",
+       "========================================\n")
+}
+
+# Load data files
 quality_assessment <- readRDS(file.path(data_outputs, "data_quality_assessment.rds"))
 quality_tracking <- quality_assessment$tracking
 coord_issues <- quality_assessment$coord_issues
