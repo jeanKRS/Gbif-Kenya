@@ -194,8 +194,8 @@ kenya_flagged <- readRDS(file.path(data_processed, "kenya_gbif_flagged.rds"))
 metadata <- readRDS(file.path(data_processed, "metadata.rds"))
 summary_stats <- readRDS(file.path(data_processed, "summary_stats.rds"))
 
-# For backward compatibility, also load cleaned data used by current analyses
-kenya_data <- readRDS(file.path(data_processed, "kenya_gbif_clean.rds"))
+# Load flagged dataset with all quality flags
+kenya_flagged <- readRDS(file.path(data_processed, "kenya_gbif_flagged.rds"))
 ```
 
 ### Data Download
@@ -554,106 +554,60 @@ Models were fitted using a `r modeling_summary$model_type` distribution to accou
 ### Overall Data Retention
 
 ```{r quality-overview}
-# Calculate summary statistics
+# Calculate summary statistics using moderate filtering strategy
 n_original <- quality_assessment$n_original
-n_final <- quality_assessment$n_final
-n_removed <- n_original - n_final
-retention_rate <- quality_metrics$retention_rate
-removal_rate <- quality_metrics$removal_rate
+n_moderate_clean <- quality_assessment$clean_counts$moderate_clean
+n_flagged <- n_original - n_moderate_clean
+retention_rate <- 100 * n_moderate_clean / n_original
+flag_rate <- 100 * n_flagged / n_original
 ```
 
-Of the **`r format(n_original, big.mark=",")`** records originally downloaded from GBIF for Kenya, **`r format(n_final, big.mark=",")`** records (`r round(retention_rate, 1)`%) passed all quality filters and were retained in the final cleaned dataset. A total of **`r format(n_removed, big.mark=",")`** records (`r round(removal_rate, 1)`%) were removed due to various quality issues (Figure 2).
+Of the **`r format(n_original, big.mark=",")`** records originally downloaded from GBIF for Kenya, our quality flagging framework identified **`r format(n_flagged, big.mark=",")`** records (`r round(flag_rate, 1)`%) with one or more quality issues. Under a moderate filtering strategy (excluding records with missing coordinates, missing species, invalid dates, or any coordinate quality issues), **`r format(n_moderate_clean, big.mark=",")`** records (`r round(retention_rate, 1)`%) would be retained for analysis (Figure 2).
 
-**Interpretation**: The `r round(removal_rate, 1)`% removal rate represents a substantial quality filtering effort, reflecting the high prevalence of issues in aggregated biodiversity data. This is comparable to quality filtering rates reported in other regional GBIF assessments (typically 40-95% removal rates depending on quality standards). The high removal rate underscores that GBIF data, while invaluable, require rigorous quality control. Data users must document and report their quality filtering decisions to ensure transparency and enable appropriate interpretation of results. Different applications may require different quality standards - for example, broad-scale macroecological studies might accept higher coordinate uncertainty than fine-scale conservation planning.
+**Interpretation**: The `r round(flag_rate, 1)`% flag rate reflects the prevalence of quality issues in aggregated biodiversity data, comparable to filtering rates in other regional GBIF assessments (typically 40-95% depending on quality standards). Importantly, our flagging approach preserves all records while documenting quality issues, allowing different analyses to apply appropriate filters based on their specific requirements. For example, spatial bias assessments should retain records flagged as "near urban centers" since urban clustering is the bias being measured, while species distribution models might exclude such records. This flexible approach balances data quality with analytical needs and ensures transparency in quality control decisions.
 
-```{r fig-quality-summary, fig.cap="Overall data quality assessment showing the proportion of records retained versus removed after all quality filters."}
-knitr::include_graphics(here("figures", "data_quality_summary_pie.png"))
+```{r fig-quality-summary, fig.cap="Overall data quality assessment showing the proportion of records with quality flags. The chart illustrates what percentage of records would be retained under a moderate filtering strategy versus flagged for quality issues."}
+knitr::include_graphics(here("figures", "data_quality_summary.png"))
 ```
 
-### Quality Filtering Cascade
+### Quality Flag Summary
 
-Table 2 presents the detailed breakdown of records removed at each quality filtering step. The filtering cascade reveals that the most common data quality issues were:
+Table 2 presents the detailed breakdown of quality flags applied to the dataset. Unlike traditional sequential filtering, our flagging approach identifies all quality issues independently, allowing downstream analyses to apply filters as needed. The most prevalent data quality issues were:
 
-```{r quality-cascade-table}
+```{r quality-flag-table}
 # Create formatted quality tracking table
-# First, get all non-coordinate steps
-quality_table_base <- quality_tracking %>%
-  filter(step != "Coordinate flags")
-
-# Get the coordinate flags row to use for records_remaining
-coord_flags_row <- quality_tracking %>%
-  filter(step == "Coordinate flags")
-
-# Create individual rows for each coordinate test
-coord_details <- coord_issues %>%
+quality_table <- quality_tracking %>%
   filter(records_flagged > 0) %>%
   arrange(desc(records_flagged)) %>%
   mutate(
-    step = paste0("  • ", test),
-    description = description,
-    records_removed = records_flagged,
-    # Use the same records_remaining for all (since they're independent tests)
-    records_remaining = coord_flags_row$records_remaining,
-    percent_removed = percent_of_original,
-    cumulative_percent_removed = coord_flags_row$cumulative_percent_removed
-  ) %>%
-  select(step, description, records_removed, records_remaining,
-         percent_removed, cumulative_percent_removed)
-
-# Add a header row for coordinate tests
-coord_header <- tibble(
-  step = "Coordinate flags (details below)",
-  description = paste0("Records flagged by ANY CoordinateCleaner test (",
-                       format(coord_flags_row$records_removed, big.mark = ","),
-                       " unique records)"),
-  records_removed = coord_flags_row$records_removed,
-  records_remaining = coord_flags_row$records_remaining,
-  percent_removed = coord_flags_row$percent_removed,
-  cumulative_percent_removed = coord_flags_row$cumulative_percent_removed
-)
-
-# Combine all rows
-quality_table_expanded <- bind_rows(
-  quality_table_base,
-  coord_header,
-  coord_details
-) %>%
-  mutate(
-    `Records Removed` = format(records_removed, big.mark = ","),
-    `% of Original` = sprintf("%.2f%%", percent_removed),
-    `Records Remaining` = format(records_remaining, big.mark = ","),
-    `Cumulative % Removed` = sprintf("%.2f%%", cumulative_percent_removed)
-  ) %>%
-  select(
-    `Quality Filter` = step,
+    `Quality Issue` = issue,
     `Description` = description,
-    `Records Removed`,
-    `% of Original`,
-    `Records Remaining`,
-    `Cumulative % Removed`
-  )
+    `Records Flagged` = format(records_flagged, big.mark = ","),
+    `% of Original` = sprintf("%.2f%%", percent_flagged)
+  ) %>%
+  select(`Quality Issue`, `Description`, `Records Flagged`, `% of Original`)
 
-kable(quality_table_expanded,
-      caption = "Detailed breakdown of data quality filtering steps. Each row shows the number and percentage of records removed at each sequential filtering step. Coordinate flags are expanded to show individual test results. Note: Individual coordinate tests may overlap (one record can be flagged by multiple tests), so the sum of individual test counts exceeds the unique records removed.",
+kable(quality_table,
+      caption = "Detailed breakdown of data quality flags. Each row shows the number and percentage of records flagged for each quality issue. Note: Flags are independent - a single record may have multiple flags.",
       booktabs = TRUE,
-      align = c("l", "l", "r", "r", "r", "r")) %>%
+      align = c("l", "l", "r", "r")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
                 full_width = TRUE,
                 font_size = 10) %>%
-  column_spec(1, bold = TRUE, width = "4cm") %>%
-  column_spec(2, width = "6cm")
+  column_spec(1, bold = TRUE, width = "5cm") %>%
+  column_spec(2, width = "7cm")
 ```
 
-Figure 3 visualizes the filtering cascade, showing the number of records removed at each quality control step.
+Figure 3 visualizes the quality flag frequencies, showing the number of records flagged for each quality issue.
 
-```{r fig-quality-cascade, fig.cap="Data quality filtering cascade showing the number of records removed at each quality control step. Bar height represents the number of records filtered out, with color intensity indicating the percentage relative to the original dataset."}
-knitr::include_graphics(here("figures", "data_quality_cascade.png"))
+```{r fig-quality-flags, fig.cap="Data quality flag frequencies showing the number of records flagged for each quality issue. Bar height represents the number of records flagged, with color intensity indicating the percentage relative to the original dataset."}
+knitr::include_graphics(here("figures", "data_quality_flag_frequencies.png"))
 ```
 
-The cumulative effect of all quality filters is illustrated in Figure 4, which shows the progressive reduction in dataset size through each filtering step.
+Figure 4 illustrates the comparison between different filtering strategies (strict, moderate, and minimal), showing how many records would be retained under each approach.
 
-```{r fig-quality-retention, fig.cap="Cumulative data retention through quality filters. The line shows the percentage of original records remaining after each sequential quality filter is applied."}
-knitr::include_graphics(here("figures", "data_quality_retention.png"))
+```{r fig-quality-strategies, fig.cap="Comparison of filtering strategies showing the number of records that would be retained under strict, moderate, and minimal quality filtering approaches. This demonstrates the flexibility of the flagging framework to support different analytical requirements."}
+knitr::include_graphics(here("figures", "data_quality_filtering_strategies.png"))
 ```
 
 ### Coordinate Quality Issues
@@ -668,7 +622,7 @@ total_coord_flagged <- quality_metrics$coordinate_quality$total_coord_flags
 pct_coord_flagged <- quality_metrics$coordinate_quality$percent_coord_flags
 ```
 
-The seven CoordinateCleaner tests identified a total of **`r format(total_coord_flagged, big.mark=",")`** records with potentially problematic coordinates, representing **`r round(pct_coord_flagged, 1)`%** of records that reached this filtering stage. Table 3 presents the detailed breakdown of coordinate quality issues.
+The seven CoordinateCleaner tests identified a total of **`r format(total_coord_flagged, big.mark=",")`** records with potentially problematic coordinates, representing **`r round(pct_coord_flagged, 1)`%** of the original dataset. Table 3 presents the detailed breakdown of coordinate quality issues.
 
 **Interpretation**: The `r round(pct_coord_flagged, 1)`% of records flagged for coordinate quality issues highlights a substantial problem with georeferencing accuracy in the dataset. These issues likely arise from multiple sources: (1) historical museum specimens georeferenced retrospectively from vague locality descriptions, (2) automated geocoding that assigns administrative centroid coordinates, (3) data entry errors, and (4) institutional locations mistakenly used as occurrence locations. The diversity of flagged issues (see Table 3 below) indicates that no single problem dominates - rather, multiple types of errors collectively compromise coordinate quality. Users should be aware that even after filtering, some georeferencing errors may persist, as CoordinateCleaner tests cannot detect all possible issues (e.g., coordinates that are slightly wrong but not statistical outliers).
 
@@ -745,7 +699,7 @@ kable(tax_complete_table,
 uncertainty <- quality_metrics$coordinate_quality$uncertainty_summary
 ```
 
-Among records that included coordinate uncertainty information, the median uncertainty was **`r format(round(uncertainty$median_uncertainty), big.mark=",")`** meters (mean = `r format(round(uncertainty$mean_uncertainty), big.mark=",")` m). The distribution of coordinate uncertainty showed that `r round((uncertainty$n_gt_10km / uncertainty$n_with_uncertainty) * 100, 1)`% of records with uncertainty data exceeded the 10 km threshold and were removed during quality filtering.
+Among records that included coordinate uncertainty information, the median uncertainty was **`r format(round(uncertainty$median_uncertainty), big.mark=",")`** meters (mean = `r format(round(uncertainty$mean_uncertainty), big.mark=",")` m). The distribution of coordinate uncertainty showed that `r round((uncertainty$n_gt_10km / uncertainty$n_with_uncertainty) * 100, 1)`% of records with uncertainty data exceeded the 10 km threshold and were flagged as high uncertainty.
 
 ### Duplicate Records
 
@@ -753,7 +707,7 @@ Among records that included coordinate uncertainty information, the median uncer
 dup_info <- quality_metrics$duplicate_info
 ```
 
-The duplicate detection step identified **`r format(dup_info$n_duplicate_records, big.mark=",")`** duplicate records organized into **`r format(dup_info$n_duplicate_sets, big.mark=",")`** unique sets of duplicates, representing **`r round(dup_info$percent_duplicates, 1)`%** of the dataset at that filtering stage. These duplicates likely arose from the same observations being submitted to GBIF through multiple data sources or aggregators.
+The duplicate detection identified **`r format(dup_info$n_duplicate_records, big.mark=",")`** duplicate records organized into **`r format(dup_info$n_duplicate_sets, big.mark=",")`** unique sets of duplicates, representing **`r round(dup_info$percent_duplicates, 1)`%** of the original dataset. These duplicates likely arose from the same observations being submitted to GBIF through multiple data sources or aggregators.
 
 ### Basis of Record
 
@@ -764,7 +718,7 @@ top_basis <- basis$basisOfRecord[1]
 top_basis_pct <- basis$percent[1]
 ```
 
-The most common basis of record was **`r top_basis`**, accounting for **`r round(top_basis_pct, 1)`%** of records. The removal of fossil and living specimens eliminated non-natural occurrence records that would not be appropriate for biodiversity assessments focused on current species distributions.
+The most common basis of record was **`r top_basis`**, accounting for **`r round(top_basis_pct, 1)`%** of records. Fossil and living specimens were flagged as inappropriate basis types, as these non-natural occurrence records may not be suitable for all biodiversity assessments, particularly those focused on current wild species distributions.
 
 ## Spatial Bias
 
@@ -981,11 +935,11 @@ knitr::include_graphics(here("figures", "22_sampling_bias_map.png"))
 
 ## Data Quality Issues
 
-Our comprehensive quality assessment framework revealed that `r round(quality_metrics$removal_rate, 1)`% of the original GBIF records for Kenya were removed due to various quality issues. This substantial filtering rate underscores the importance of rigorous quality control in biodiversity data workflows and highlights several key insights:
+Our comprehensive quality flagging framework identified quality issues in `r round(flag_rate, 1)`% of the original GBIF records for Kenya. This substantial flag rate underscores the importance of rigorous quality control in biodiversity data workflows and highlights several key insights about our innovative flagging approach:
 
 ### Transparency in Data Quality Reporting
 
-Most studies using GBIF data report only final cleaned dataset sizes, without quantifying the specific quality issues encountered. Our systematic tracking approach provides transparency by documenting exactly which quality filters removed how many records. This enables:
+Most studies using GBIF data report only final cleaned dataset sizes, without quantifying the specific quality issues encountered or explaining which filters were applied. Our systematic flagging approach provides maximum transparency by documenting all quality issues while preserving all records, enabling downstream analyses to apply filters appropriate to their specific needs. This approach enables:
 
 1. **Reproducibility:** Other researchers can apply comparable quality standards
 2. **Fitness-for-use assessment:** Data users can evaluate whether quality standards meet their analytical needs
@@ -1112,7 +1066,7 @@ Based on our findings, we recommend:
 
 # Conclusions
 
-GBIF occurrence data for Kenya require substantial quality filtering and exhibit significant spatial, temporal, and taxonomic biases. Our comprehensive assessment revealed that `r round(quality_metrics$removal_rate, 1)`% of original records were removed due to quality issues, with coordinate problems being the most prevalent. Beyond quality control, sampling effort is strongly concentrated near accessible areas, has increased over time but remains temporally inconsistent, and heavily favors certain taxonomic groups. Both data quality issues and systematic biases must be carefully considered in biodiversity assessments, species distribution modeling, and conservation planning.
+GBIF occurrence data for Kenya exhibit widespread quality issues and significant spatial, temporal, and taxonomic biases. Our comprehensive flagging framework identified quality issues in `r round(flag_rate, 1)`% of original records, with coordinate problems being the most prevalent. Critically, our flagging approach preserves all records while documenting issues, allowing different analyses to apply appropriate filters based on their specific requirements. Beyond quality issues, sampling effort is strongly concentrated near accessible areas, has increased over time but remains temporally inconsistent, and heavily favors certain taxonomic groups. Both data quality issues and systematic biases must be carefully considered in biodiversity assessments, species distribution modeling, and conservation planning.
 
 This study makes three key contributions:
 
