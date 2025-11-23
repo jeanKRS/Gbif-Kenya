@@ -12,10 +12,13 @@ This repository contains a comprehensive, reproducible analysis of **data qualit
 - **Comprehensive data quality tracking**: Systematic documentation and quantification of all quality issues (missing coordinates, coordinate uncertainty, duplicates, taxonomic completeness, etc.)
 - **Transparent quality reporting**: Detailed breakdown of records removed at each filtering step with percentages relative to original dataset
 - **CoordinateCleaner integration**: Seven independent coordinate quality tests with individual issue quantification
+- **Interactive visualizations**: Dynamic tables, charts, and maps for hands-on exploration (educational)
+- **Function flow documentation**: Complete traceability from raw data to final results
 - **Reproducible workflow**: All analyses are fully reproducible using R scripts and R Markdown
 - **Multi-dimensional bias assessment**: Spatial, temporal, and taxonomic dimensions analyzed
 - **Statistical modeling**: GLMs and GAMs to identify predictors of sampling effort
 - **Publication-ready outputs**: Figures, tables, and compiled manuscript
+- **Educational design**: Perfect for teaching reproducible research and biodiversity informatics
 - **Open science**: All code, data, and documentation openly available
 
 ## Project Structure
@@ -63,6 +66,7 @@ Main packages required:
 - **Bias assessment**: `occAssess`, `vegan`, `iNEXT`
 - **Statistical analysis**: `MASS`, `lme4`, `mgcv`, `DHARMa`, `performance`
 - **Visualization**: `ggplot2`, `viridis`, `patchwork`, `treemap`
+- **Interactive visualization**: `DT`, `plotly`, `leaflet`, `htmltools` (NEW!)
 - **Reproducibility**: `here`, `renv`, `rmarkdown`, `knitr`
 
 ## Installation
@@ -92,7 +96,8 @@ install.packages(c("tidyverse", "sf", "here", "rgbif", "occAssess",
                    "mgcv", "DHARMa", "performance", "viridis", "patchwork",
                    "Kendall", "lubridate", "scales", "knitr", "rmarkdown",
                    "treemap", "ggalluvial", "ineq", "spdep", "ape", "osmdata",
-                   "forecast", "tseries", "effects", "MuMIn", "kableExtra"))
+                   "forecast", "tseries", "effects", "MuMIn", "kableExtra",
+                   "DT", "plotly", "leaflet", "htmltools"))  # Interactive viz packages
 ```
 
 ### 3. Set GBIF credentials
@@ -273,6 +278,65 @@ Our analysis of GBIF data for Kenya reveals:
 - **Distance to cities**: Strongest predictor (negative effect)
 - **Elevation**: Non-linear relationship
 - **Environmental factors**: Moderate effects
+
+## Interactive Features & Educational Design
+
+### NEW: Interactive Visualizations
+
+The manuscript now includes **interactive tables, charts, and maps** designed for educational purposes and hands-on exploration:
+
+#### Interactive Tables (DT)
+- **Click to sort** any column (ascending/descending)
+- **Search and filter** data in real-time
+- **Export** selections to CSV or Excel
+- **Pagination** for browsing large datasets
+
+**Example**: Sensitivity Analysis table allows sorting by retention percentage to compare filtering strategies
+
+#### Interactive Maps (Leaflet)
+- **Zoom and pan** to explore geographic patterns at any scale
+- **Click cells** to see detailed statistics (records, species, coordinates)
+- **Hover** to highlight specific regions
+- **Basemap** provides geographic context
+
+**Example**: Sampling effort map lets you zoom into Nairobi (high sampling) vs. northern Kenya (sampling gaps)
+
+#### Interactive Charts (Plotly)
+- **Zoom** into specific time periods or value ranges
+- **Hover** for exact values at any data point
+- **Toggle** data series on/off via legend
+- **Download** charts as PNG for presentations
+
+**Example**: Temporal trends chart allows zooming into specific decades to see annual variation
+
+### Function Flow Documentation
+
+Every output is annotated with **complete traceability**:
+
+- **Source file** and line numbers showing where code lives
+- **Function names** indicating which transformations were applied
+- **Collapsible code blocks** revealing the exact R code
+- **Educational notes** explaining the analysis pipeline
+
+See **`docs/FUNCTION_FLOW.md`** for comprehensive documentation mapping every table and figure to its source code.
+
+### Educational Use Cases
+
+This project is designed for teaching:
+
+1. **Reproducible Research**: Students can trace results back to raw data
+2. **Biodiversity Informatics**: Demonstrates data quality assessment workflows
+3. **Spatial Statistics**: Shows spatial autocorrelation and bias analysis
+4. **Data Visualization**: Examples of static and interactive visualizations
+5. **R Programming**: Well-documented code with reusable functions
+
+**For Educators**: The interactive features allow students to:
+- Explore patterns hands-on rather than passively viewing
+- Test "what-if" scenarios by filtering and sorting
+- Understand the impact of quality control decisions
+- See exactly which code generated which results
+
+**Function Flow Reference**: `docs/FUNCTION_FLOW.md` provides a complete learning pathway from beginner to advanced, with code explanations and educational notes.
 
 ## Outputs
 
