@@ -234,6 +234,14 @@ if (any(missing_files)) {
 }
 
 # Load data files
+# NOTE FOR LEARNERS: These load intermediate results for use in abstract/inline code.
+# The complete code pipelines showing HOW these objects are generated appear later:
+#   - quality_assessment: See "Data Quality Assessment" section (Quality Flagging Pipeline card)
+#   - kenya_flagged: See "Data Quality Assessment" section (Quality Flagging Pipeline card)
+#   - spatial_summary & moran_results: See "Spatial Bias" section (Spatial Grid & Moran's I cards)
+#   - temporal_summary: See "Results > Temporal Patterns" section (Temporal Trends card)
+#   - taxonomic_summary: See "Taxonomic Bias" section (Taxonomic Diversity card)
+
 quality_assessment <- readRDS(file.path(data_outputs, "data_quality_assessment.rds"))
 quality_tracking <- quality_assessment$tracking
 coord_issues <- quality_assessment$coord_issues
@@ -393,6 +401,12 @@ By achieving these objectives, we provide both a thorough assessment of Kenya's 
 ## Data Acquisition and Cleaning
 
 ```{r load-data}
+# 📚 LEARNING NOTE: We're loading pre-computed results here for the Methods description.
+# ➡️  To see HOW these objects are created from raw GBIF data, scroll down to:
+#     - "GBIF Download → Summary Statistics Pipeline" card (beautiful purple card below)
+#     - "Data Quality Flagging Pipeline" card (in Data Quality Assessment section)
+# This is a common pattern: load results first, explain methodology, then show complete code.
+
 # Load flagged data (with quality flags, not filtered)
 kenya_flagged <- readRDS(file.path(data_processed, "kenya_gbif_flagged.rds"))
 
@@ -578,6 +592,9 @@ create_interactive_table(summary_table, ...)
 ## Data Quality Assessment
 
 ```{r load-quality-data}
+# 📚 LEARNING NOTE: Loading pre-computed quality assessment results
+# ➡️  Complete generation code shown in "Data Quality Flagging Pipeline" card below ⬇️
+
 # Load comprehensive data quality assessment
 quality_assessment <- readRDS(file.path(data_outputs, "data_quality_assessment.rds"))
 quality_tracking <- quality_assessment$tracking
@@ -856,6 +873,11 @@ By comparing these metrics across filtering strategies, we demonstrate that our 
 ## Spatial Bias Assessment
 
 ```{r load-spatial-data}
+# 📚 LEARNING NOTE: Loading pre-computed spatial analysis results
+# ➡️  Complete generation code shown in TWO cards below:
+#     1. "Spatial Grid Creation Pipeline" card ⬇️
+#     2. "Moran's I Spatial Autocorrelation Pipeline" card ⬇️
+
 spatial_grid <- readRDS(file.path(data_outputs, "spatial_grid_effort.rds"))
 spatial_summary <- readRDS(file.path(data_outputs, "spatial_bias_summary.rds"))
 moran_results <- spatial_summary$moran_results
@@ -1024,6 +1046,10 @@ The K-S test compares cumulative distribution functions and returns a D-statisti
 ## Temporal Bias Assessment
 
 ```{r load-temporal-data}
+# 📚 LEARNING NOTE: Loading pre-computed temporal analysis results
+# ➡️  Complete generation code shown in "Temporal Trends Analysis Pipeline" card
+#     (in Results > Temporal Patterns section - interactive chart below) ⬇️
+
 temporal_summary <- readRDS(file.path(data_outputs, "temporal_bias_summary.rds"))
 temporal_stats <- temporal_summary$temporal_stats
 trend_tests <- temporal_summary$trend_tests
@@ -1072,6 +1098,11 @@ We analyzed the distribution of records across months to identify potential seas
 ## Taxonomic Bias Assessment
 
 ```{r load-taxonomic-data}
+# 📚 LEARNING NOTE: Loading pre-computed taxonomic analysis results
+# ➡️  Complete generation code shown in TWO cards below:
+#     1. "Taxonomic Diversity & Inequality Pipeline" card (class_summary, Gini, etc.) ⬇️
+#     2. "Species Rarity Distribution Pipeline" card (rarity_summary) ⬇️
+
 taxonomic_summary <- readRDS(file.path(data_outputs, "taxonomic_bias_summary.rds"))
 class_summary <- readRDS(file.path(data_outputs, "class_summary.rds"))
 rarity_summary <- readRDS(file.path(data_outputs, "rarity_summary.rds"))
@@ -1263,6 +1294,10 @@ We generated species accumulation curves showing cumulative species richness as 
 ## Statistical Modeling
 
 ```{r load-model-data}
+# 📚 LEARNING NOTE: Loading pre-computed statistical model results
+# ➡️  Complete generation code shown in "Statistical Modeling Pipeline (GLM/GAM)" card below ⬇️
+#     This includes: environmental covariate extraction, GLM fitting, coefficient extraction
+
 modeling_summary <- readRDS(file.path(data_outputs, "modeling_summary.rds"))
 model_summaries <- readRDS(file.path(data_outputs, "model_summaries.rds"))
 ```
