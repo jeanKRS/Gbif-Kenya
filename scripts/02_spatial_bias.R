@@ -174,20 +174,20 @@ elevation <- if (is.character(elevation_data)) terra::rast(elevation_data) else 
 
 # Extract elevation values - terra::extract returns data.frame with ID column + data columns
 elev_extracted <- terra::extract(elevation, kenya_coords)
-# Take all columns except the first (ID column)
-elevation_values <- elev_extracted[, -1, drop = TRUE]
+# Take all columns except the first (ID column) and ensure it's a vector
+elevation_values <- as.vector(elev_extracted[, -1, drop = TRUE])
 
 # Get climate data
 message("Downloading climate data...")
 climate_data <- worldclim_country(country = "KEN", var = "bio", path = tempdir())
 climate <- if (is.character(climate_data)) terra::rast(climate_data) else climate_data
 
-# Extract environmental values into data frame
+# Extract environmental values into data frame - ensure all are vectors
 kenya_data_env <- kenya_data %>%
   mutate(
     elevation = elevation_values,
-    bio1_temp = terra::extract(climate[[1]], kenya_coords)[, -1, drop = TRUE],  # Drop ID column
-    bio12_precip = terra::extract(climate[[12]], kenya_coords)[, -1, drop = TRUE]  # Drop ID column
+    bio1_temp = as.vector(terra::extract(climate[[1]], kenya_coords)[, -1, drop = TRUE]),
+    bio12_precip = as.vector(terra::extract(climate[[12]], kenya_coords)[, -1, drop = TRUE])
   )
 
 # Calculate distance to nearest record for each grid cell
@@ -418,12 +418,12 @@ set.seed(123)
 background_points <- st_sample(kenya_boundary, size = 10000) %>%
   st_coordinates()
 
-# Extract environmental values for background
+# Extract environmental values for background - ensure all are vectors
 bg_env <- data.frame(
   type = "available",
-  elevation = terra::extract(elevation, background_points)[, -1, drop = TRUE],  # Drop ID column
-  temperature = terra::extract(climate[[1]], background_points)[, -1, drop = TRUE],
-  precipitation = terra::extract(climate[[12]], background_points)[, -1, drop = TRUE]
+  elevation = as.vector(terra::extract(elevation, background_points)[, -1, drop = TRUE]),
+  temperature = as.vector(terra::extract(climate[[1]], background_points)[, -1, drop = TRUE]),
+  precipitation = as.vector(terra::extract(climate[[12]], background_points)[, -1, drop = TRUE])
 )
 
 # Environmental values for occurrences
