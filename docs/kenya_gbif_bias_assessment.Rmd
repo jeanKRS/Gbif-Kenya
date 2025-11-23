@@ -400,13 +400,19 @@ By achieving these objectives, we provide both a thorough assessment of Kenya's 
 
 ## Data Acquisition and Cleaning
 
-```{r load-data}
-# 📚 LEARNING NOTE: We're loading pre-computed results here for the Methods description.
-# ➡️  To see HOW these objects are created from raw GBIF data, scroll down to:
-#     - "GBIF Download → Summary Statistics Pipeline" card (beautiful purple card below)
-#     - "Data Quality Flagging Pipeline" card (in Data Quality Assessment section)
-# This is a common pattern: load results first, explain methodology, then show complete code.
+```
 
+<div style="background-color: #e3f2fd; border-left: 4px solid #2196F3; padding: 12px 15px; margin: 15px 0; border-radius: 4px;">
+<strong>📚 LEARNING NOTE:</strong> We're loading pre-computed results here for the Methods description.<br>
+<strong>➡️  To see HOW these objects are created from raw GBIF data, click below:</strong>
+<ul style="margin: 8px 0;">
+<li><a href="#pipeline-summary-stats" style="color: #1976D2; font-weight: 600;">📊 GBIF Download → Summary Statistics Pipeline</a> (beautiful purple card below)</li>
+<li><a href="#pipeline-quality" style="color: #1976D2; font-weight: 600;">🔍 Data Quality Flagging Pipeline</a> (in Data Quality Assessment section)</li>
+</ul>
+<em>This is a common pattern: load results first, explain methodology, then show complete code.</em>
+</div>
+
+```{r load-data}
 # Load flagged data (with quality flags, not filtered)
 kenya_flagged <- readRDS(file.path(data_processed, "kenya_gbif_flagged.rds"))
 
@@ -508,6 +514,9 @@ create_interactive_table(
   )
 )
 
+<a id="pipeline-summary-stats"></a>
+
+```{r summary-stats-pipeline, echo=FALSE, results='asis'}
 # Show the source code in a beautiful pipeline card
 create_pipeline_card("
 ### COMPLETE PIPELINE: GBIF Download → Quality Filtering → Summary Statistics ###
@@ -591,16 +600,23 @@ create_interactive_table(summary_table, ...)
 
 ## Data Quality Assessment
 
-```{r load-quality-data}
-# 📚 LEARNING NOTE: Loading pre-computed quality assessment results
-# ➡️  Complete generation code shown in "Data Quality Flagging Pipeline" card below ⬇️
+<div style="background-color: #e3f2fd; border-left: 4px solid #2196F3; padding: 12px 15px; margin: 15px 0; border-radius: 4px;">
+<strong>📚 LEARNING NOTE:</strong> Loading pre-computed quality assessment results<br>
+<strong>➡️  Click to jump to complete generation code:</strong>
+<ul style="margin: 8px 0;">
+<li><a href="#pipeline-quality" style="color: #1976D2; font-weight: 600;">🔍 Data Quality Flagging Pipeline</a> (see beautiful purple card below ⬇️)</li>
+</ul>
+</div>
 
+```{r load-quality-data}
 # Load comprehensive data quality assessment
 quality_assessment <- readRDS(file.path(data_outputs, "data_quality_assessment.rds"))
 quality_tracking <- quality_assessment$tracking
 coord_issues <- quality_assessment$coord_issues
 quality_metrics <- quality_assessment$metrics
 ```
+
+<a id="pipeline-quality"></a>
 
 ```{r quality-assessment-pipeline, echo=FALSE, results='asis'}
 # Show complete pipeline for quality assessment
@@ -872,17 +888,23 @@ By comparing these metrics across filtering strategies, we demonstrate that our 
 
 ## Spatial Bias Assessment
 
-```{r load-spatial-data}
-# 📚 LEARNING NOTE: Loading pre-computed spatial analysis results
-# ➡️  Complete generation code shown in TWO cards below:
-#     1. "Spatial Grid Creation Pipeline" card ⬇️
-#     2. "Moran's I Spatial Autocorrelation Pipeline" card ⬇️
+<div style="background-color: #e3f2fd; border-left: 4px solid #2196F3; padding: 12px 15px; margin: 15px 0; border-radius: 4px;">
+<strong>📚 LEARNING NOTE:</strong> Loading pre-computed spatial analysis results<br>
+<strong>➡️  Click to jump to complete generation code (TWO cards below):</strong>
+<ul style="margin: 8px 0;">
+<li><a href="#pipeline-spatial-grid" style="color: #1976D2; font-weight: 600;">🗺️ Spatial Grid Creation Pipeline</a></li>
+<li><a href="#pipeline-moran" style="color: #1976D2; font-weight: 600;">📍 Moran's I Spatial Autocorrelation Pipeline</a></li>
+</ul>
+</div>
 
+```{r load-spatial-data}
 spatial_grid <- readRDS(file.path(data_outputs, "spatial_grid_effort.rds"))
 spatial_summary <- readRDS(file.path(data_outputs, "spatial_bias_summary.rds"))
 moran_results <- spatial_summary$moran_results
 env_bias <- spatial_summary$env_bias_summary
 ```
+
+<a id="pipeline-spatial-grid"></a>
 
 ```{r complete-spatial-grid-pipeline, eval=FALSE, echo=FALSE, results='asis'}
 create_pipeline_card("
@@ -941,6 +963,8 @@ saveRDS(kenya_grid_complete,
   subtitle = "Hexagonal grid at ~10km resolution → sampling effort per cell | scripts/02_spatial_bias.R"
 )
 ```
+
+<a id="pipeline-moran"></a>
 
 ```{r complete-moran-pipeline, eval=FALSE, echo=FALSE, results='asis'}
 create_pipeline_card("
@@ -1045,11 +1069,15 @@ The K-S test compares cumulative distribution functions and returns a D-statisti
 
 ## Temporal Bias Assessment
 
-```{r load-temporal-data}
-# 📚 LEARNING NOTE: Loading pre-computed temporal analysis results
-# ➡️  Complete generation code shown in "Temporal Trends Analysis Pipeline" card
-#     (in Results > Temporal Patterns section - interactive chart below) ⬇️
+<div style="background-color: #e3f2fd; border-left: 4px solid #2196F3; padding: 12px 15px; margin: 15px 0; border-radius: 4px;">
+<strong>📚 LEARNING NOTE:</strong> Loading pre-computed temporal analysis results<br>
+<strong>➡️  Click to jump to complete generation code:</strong>
+<ul style="margin: 8px 0;">
+<li><a href="#pipeline-temporal" style="color: #1976D2; font-weight: 600;">📅 Temporal Trends Analysis Pipeline</a> (in Results section with interactive chart)</li>
+</ul>
+</div>
 
+```{r load-temporal-data}
 temporal_summary <- readRDS(file.path(data_outputs, "temporal_bias_summary.rds"))
 temporal_stats <- temporal_summary$temporal_stats
 trend_tests <- temporal_summary$trend_tests
@@ -1097,16 +1125,22 @@ We analyzed the distribution of records across months to identify potential seas
 
 ## Taxonomic Bias Assessment
 
-```{r load-taxonomic-data}
-# 📚 LEARNING NOTE: Loading pre-computed taxonomic analysis results
-# ➡️  Complete generation code shown in TWO cards below:
-#     1. "Taxonomic Diversity & Inequality Pipeline" card (class_summary, Gini, etc.) ⬇️
-#     2. "Species Rarity Distribution Pipeline" card (rarity_summary) ⬇️
+<div style="background-color: #e3f2fd; border-left: 4px solid #2196F3; padding: 12px 15px; margin: 15px 0; border-radius: 4px;">
+<strong>📚 LEARNING NOTE:</strong> Loading pre-computed taxonomic analysis results<br>
+<strong>➡️  Click to jump to complete generation code (TWO cards below):</strong>
+<ul style="margin: 8px 0;">
+<li><a href="#pipeline-taxonomic" style="color: #1976D2; font-weight: 600;">🦋 Taxonomic Diversity & Inequality Pipeline</a> (class_summary, Gini, etc.)</li>
+<li><a href="#pipeline-rarity" style="color: #1976D2; font-weight: 600;">🔬 Species Rarity Distribution Pipeline</a> (rarity_summary)</li>
+</ul>
+</div>
 
+```{r load-taxonomic-data}
 taxonomic_summary <- readRDS(file.path(data_outputs, "taxonomic_bias_summary.rds"))
 class_summary <- readRDS(file.path(data_outputs, "class_summary.rds"))
 rarity_summary <- readRDS(file.path(data_outputs, "rarity_summary.rds"))
 ```
+
+<a id="pipeline-taxonomic"></a>
 
 ```{r complete-class-summary-pipeline, eval=FALSE, echo=FALSE, results='asis'}
 create_pipeline_card("
@@ -1186,6 +1220,8 @@ saveRDS(diversity_metrics,
   subtitle = "Class summary → Gini coefficient → diversity indices | scripts/04_taxonomic_bias.R"
 )
 ```
+
+<a id="pipeline-rarity"></a>
 
 ```{r complete-rarity-summary-pipeline, eval=FALSE, echo=FALSE, results='asis'}
 create_pipeline_card("
@@ -1293,11 +1329,15 @@ We generated species accumulation curves showing cumulative species richness as 
 
 ## Statistical Modeling
 
-```{r load-model-data}
-# 📚 LEARNING NOTE: Loading pre-computed statistical model results
-# ➡️  Complete generation code shown in "Statistical Modeling Pipeline (GLM/GAM)" card below ⬇️
-#     This includes: environmental covariate extraction, GLM fitting, coefficient extraction
+<div style="background-color: #e3f2fd; border-left: 4px solid #2196F3; padding: 12px 15px; margin: 15px 0; border-radius: 4px;">
+<strong>📚 LEARNING NOTE:</strong> Loading pre-computed statistical model results<br>
+<strong>➡️  Click to jump to complete generation code:</strong>
+<ul style="margin: 8px 0;">
+<li><a href="#pipeline-models" style="color: #1976D2; font-weight: 600;">📈 Statistical Modeling Pipeline (GLM/GAM)</a> (environmental extraction, fitting, coefficients)</li>
+</ul>
+</div>
 
+```{r load-model-data}
 modeling_summary <- readRDS(file.path(data_outputs, "modeling_summary.rds"))
 model_summaries <- readRDS(file.path(data_outputs, "model_summaries.rds"))
 ```
@@ -1358,6 +1398,8 @@ if(length(missing_count) > 0) {
 }
 cat('</div>')
 ```
+
+<a id="pipeline-models"></a>
 
 ```{r complete-statistical-models-pipeline, eval=FALSE, echo=FALSE, results='asis'}
 create_pipeline_card("
@@ -2358,6 +2400,9 @@ if (!is.null(temporal_summary) && "temporal_stats" %in% names(temporal_summary))
       func_name = "group_by(year) + summarize() + plotly::plot_ly()",
       description = "Temporal statistics aggregated by year, showing trends in data accumulation over time"
     )
+
+    # Add anchor for navigation
+    cat('<a id="pipeline-temporal"></a>\n\n')
 
     # Add collapsible code showing COMPLETE pipeline from R scripts
     create_pipeline_card("
