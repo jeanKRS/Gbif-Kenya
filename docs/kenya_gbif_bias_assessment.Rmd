@@ -1633,10 +1633,47 @@ kable(quality_table,
   column_spec(2, width = "7cm")
 ```
 
-Figure 3 visualizes the quality flag frequencies, showing the number of records flagged for each quality issue.
+Figure 3 visualizes the quality flag frequencies, showing the number of records flagged for each quality issue (hover over bars for details).
 
-```{r fig-quality-flags, fig.cap="Data quality flag frequencies showing the number of records flagged for each quality issue. Bar height represents the number of records flagged, with color intensity indicating the percentage relative to the original dataset."}
-knitr::include_graphics(here("figures", "data_quality_flags.png"))
+```{r fig-quality-flags-interactive, fig.cap="Interactive quality flag frequencies. Hover over bars to see exact counts and percentages."}
+# Create interactive plotly bar chart
+quality_plot_data <- quality_tracking %>%
+  filter(records_flagged > 0) %>%
+  arrange(desc(records_flagged)) %>%
+  mutate(issue = factor(issue, levels = issue))  # Preserve order
+
+fig_quality <- plot_ly(
+  data = quality_plot_data,
+  x = ~issue,
+  y = ~records_flagged,
+  type = 'bar',
+  marker = list(
+    color = ~percent_flagged,
+    colorscale = 'Reds',
+    colorbar = list(title = "% of Dataset"),
+    line = list(color = 'rgb(8,48,107)', width = 1)
+  ),
+  hovertemplate = paste0(
+    '<b>%{x}</b><br>',
+    'Records Flagged: %{y:,}<br>',
+    'Percentage: %{marker.color:.2f}%<br>',
+    '<extra></extra>'
+  )
+) %>%
+  layout(
+    xaxis = list(
+      title = "Quality Issue",
+      tickangle = -45
+    ),
+    yaxis = list(
+      title = "Number of Records Flagged",
+      hoverformat = ','
+    ),
+    hovermode = 'closest',
+    margin = list(b = 150)  # Extra bottom margin for rotated labels
+  )
+
+fig_quality
 ```
 
 ### Coordinate Quality Issues
@@ -1683,8 +1720,47 @@ kable(coord_table,
 
 The most common coordinate quality issue was ***`r top_coord_issue$test`***, affecting ***`r format(top_coord_issue$records_flagged, big.mark=",")`*** records (*`r round(top_coord_issue$percent_of_original, 2)`*% of the original dataset). Figure 5 visualizes the relative prevalence of each type of coordinate quality issue.
 
-```{r fig-coord-issues, fig.cap="Breakdown of coordinate quality issues detected by CoordinateCleaner. Bar length indicates the number of records flagged by each test, with color intensity representing the percentage of the original dataset."}
-knitr::include_graphics(here("figures", "coordinate_issues_breakdown.png"))
+```{r fig-coord-issues-interactive, fig.cap="Interactive breakdown of coordinate quality issues. Hover over bars to see details about each test."}
+# Create interactive plotly bar chart for coordinate issues
+coord_plot_data <- coord_issues %>%
+  filter(records_flagged > 0) %>%
+  arrange(desc(records_flagged)) %>%
+  mutate(test = factor(test, levels = test))  # Preserve order
+
+fig_coord <- plot_ly(
+  data = coord_plot_data,
+  x = ~test,
+  y = ~records_flagged,
+  type = 'bar',
+  marker = list(
+    color = ~percent_of_original,
+    colorscale = 'Oranges',
+    colorbar = list(title = "% of Dataset"),
+    line = list(color = 'rgb(8,48,107)', width = 1)
+  ),
+  text = ~description,
+  hovertemplate = paste0(
+    '<b>%{x}</b><br>',
+    '%{text}<br>',
+    'Records Flagged: %{y:,}<br>',
+    'Percentage: %{marker.color:.2f}%<br>',
+    '<extra></extra>'
+  )
+) %>%
+  layout(
+    xaxis = list(
+      title = "CoordinateCleaner Test",
+      tickangle = -45
+    ),
+    yaxis = list(
+      title = "Number of Records Flagged",
+      hoverformat = ','
+    ),
+    hovermode = 'closest',
+    margin = list(b = 150)
+  )
+
+fig_coord
 ```
 
 ### Taxonomic Completeness
@@ -2539,8 +2615,66 @@ kable(coef_table,
                 full_width = FALSE)
 ```
 
-```{r fig-coefficients, fig.cap="Coefficient plot showing predictors of sampling effort with 95% confidence intervals. Points right of zero indicate positive effects, left indicate negative effects."}
-knitr::include_graphics(here("figures", "23_coefficient_plot.png"))
+```{r fig-coefficients-interactive, fig.cap="Interactive coefficient plot. Hover over points to see exact values and confidence intervals."}
+# Create interactive coefficient plot
+coef_plot_data <- count_model_summary %>%
+  mutate(
+    predictor_clean = ifelse(term %in% names(predictor_name_map),
+                            predictor_name_map[term],
+                            str_to_title(str_replace_all(str_remove(term, "_scaled"), "_", " "))),
+    predictor_clean = factor(predictor_clean,
+                            levels = predictor_clean[order(estimate)])
+  )
+
+fig_coef <- plot_ly(
+  data = coef_plot_data,
+  x = ~estimate,
+  y = ~predictor_clean,
+  type = 'scatter',
+  mode = 'markers',
+  marker = list(
+    size = 12,
+    color = ~ifelse(p.value < 0.05, '#d62728', '#7f7f7f'),
+    line = list(color = 'black', width = 1)
+  ),
+  error_x = list(
+    type = 'data',
+    symmetric = FALSE,
+    array = ~(conf.high - estimate),
+    arrayminus = ~(estimate - conf.low),
+    color = 'black',
+    thickness = 2
+  ),
+  hovertemplate = paste0(
+    '<b>%{y}</b><br>',
+    'Coefficient: %{x:.4f}<br>',
+    'CI: [%{error_x.arrayminus:.4f}, %{error_x.array:.4f}]<br>',
+    'P-value: ', format.pval(coef_plot_data$p.value, eps = 0.001), '<br>',
+    '<extra></extra>'
+  )
+) %>%
+  layout(
+    xaxis = list(
+      title = "Coefficient Estimate",
+      zeroline = TRUE,
+      zerolinecolor = 'red',
+      zerolinewidth = 2
+    ),
+    yaxis = list(
+      title = ""
+    ),
+    shapes = list(
+      list(
+        type = 'line',
+        x0 = 0, x1 = 0,
+        y0 = -0.5, y1 = length(coef_plot_data$predictor_clean) - 0.5,
+        line = list(color = 'red', width = 2, dash = 'dash')
+      )
+    ),
+    hovermode = 'closest'
+  )
+
+fig_coef
 ```
 
 ### Sampling Bias Map
@@ -3027,6 +3161,49 @@ knitr::include_graphics(here("figures", "02_species_richness_map.png"))
 knitr::include_graphics(here("figures", "08_temporal_by_class.png"))
 ```
 
-```{r fig-appendix-rarity, fig.cap="Appendix Figure A3: Distribution of species by rarity class showing high proportion of rare and singleton species."}
-knitr::include_graphics(here("figures", "13_rarity_distribution.png"))
+```{r fig-appendix-rarity-interactive, fig.cap="Appendix Figure A3: Interactive distribution of species by rarity class. Hover to see exact counts."}
+# Create interactive rarity distribution bar chart
+rarity_plot_data <- rarity_summary %>%
+  mutate(
+    rarity_class = factor(rarity_class,
+                         levels = c("Singleton (1 record)", "Doubleton (2 records)",
+                                   "Very rare (3-5 records)", "Rare (6-10 records)",
+                                   "Uncommon (11-50 records)", "Common (51-100 records)",
+                                   "Very common (>100 records)"))
+  )
+
+fig_rarity <- plot_ly(
+  data = rarity_plot_data,
+  x = ~rarity_class,
+  y = ~n_species,
+  type = 'bar',
+  marker = list(
+    color = ~n_species,
+    colorscale = 'Viridis',
+    colorbar = list(title = "Species Count"),
+    line = list(color = 'black', width = 1)
+  ),
+  hovertemplate = paste0(
+    '<b>%{x}</b><br>',
+    'Species: %{y:,}<br>',
+    'Total Records: ', format(rarity_plot_data$total_records, big.mark = ","), '<br>',
+    '% of Species: ', round(rarity_plot_data$prop_species * 100, 1), '%<br>',
+    '% of Records: ', round(rarity_plot_data$prop_records * 100, 1), '%<br>',
+    '<extra></extra>'
+  )
+) %>%
+  layout(
+    xaxis = list(
+      title = "Rarity Class",
+      tickangle = -45
+    ),
+    yaxis = list(
+      title = "Number of Species",
+      hoverformat = ','
+    ),
+    hovermode = 'closest',
+    margin = list(b = 150)
+  )
+
+fig_rarity
 ```
