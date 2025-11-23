@@ -61,6 +61,9 @@ quality_tracking <- quality_assessment$tracking
 coord_issues <- quality_assessment$coord_issues
 quality_metrics <- quality_assessment$metrics
 
+# Load flagged data to get actual filtering numbers
+kenya_flagged <- readRDS(file.path(data_processed, "kenya_gbif_flagged.rds"))
+
 spatial_summary <- readRDS(file.path(data_outputs, "spatial_bias_summary.rds"))
 moran_results <- spatial_summary$moran_results
 
@@ -78,11 +81,11 @@ gini_records <- diversity_metrics$value[diversity_metrics$metric == "Gini_record
 
 **Objectives:** We conducted a comprehensive assessment of data quality issues and systematic biases in GBIF occurrence data for Kenya, quantifying all quality filters applied during data cleaning and analyzing spatial, temporal, and taxonomic biases using reproducible R-based workflows.
 
-**Methods:** We downloaded `r format(quality_assessment$n_original, big.mark=",")` occurrence records from GBIF for Kenya and implemented a systematic quality filtering framework that tracked and quantified seven major quality issues: missing coordinates, high coordinate uncertainty (>10 km), inappropriate basis of record, missing species identification, invalid dates, duplicates, and coordinate quality flags. We assessed spatial bias using grid-based analyses, environmental space coverage, and spatial autocorrelation. Temporal bias was evaluated through trend analyses and completeness metrics. Taxonomic bias was quantified using diversity indices and species accumulation curves. We used generalized linear models (GLMs) and generalized additive models (GAMs) to identify environmental and geographic predictors of sampling effort.
+**Methods:** We downloaded `r format(quality_assessment$n_original, big.mark=",")` occurrence records from GBIF for Kenya and implemented a systematic quality **flagging** framework that identified and documented seven major quality issues: missing coordinates, high coordinate uncertainty (>10 km), inappropriate basis of record, missing species identification, invalid dates, duplicates, and coordinate quality flags. Critically, our approach **flags** quality issues rather than automatically removing records, allowing each downstream analysis to apply filters appropriate to its specific requirements. We assessed spatial bias using grid-based analyses, environmental space coverage, and spatial autocorrelation. Temporal bias was evaluated through trend analyses and completeness metrics. Taxonomic bias was quantified using diversity indices and species accumulation curves. We used generalized linear models (GLMs) and generalized additive models (GAMs) to identify environmental and geographic predictors of sampling effort.
 
-**Results:** Data quality filtering removed `r format(quality_assessment$n_original - quality_assessment$n_final, big.mark=",")` records (`r round(quality_metrics$removal_rate, 1)`%), with the final cleaned dataset containing `r format(quality_assessment$n_final, big.mark=",")` records. The most common category of quality issues involved coordinate-related problems, with `r format(quality_metrics$coordinate_quality$total_coord_flags, big.mark=",")` records flagged by CoordinateCleaner tests, representing `r round(quality_metrics$coordinate_quality$percent_coord_flags, 1)`% of records evaluated at the coordinate validation stage. Beyond quality issues, our bias analyses revealed significant spatial, temporal, and taxonomic biases. Sampling effort was concentrated near major cities and roads, with strong positive spatial autocorrelation (Moran's I = `r round(moran_results$morans_i, 3)`, p < 0.001). Temporal analysis showed increasing trends in data collection, with `r round(temporal_stats$cv_records, 2)` coefficient of variation in annual records. Taxonomic coverage was highly uneven, with a Gini coefficient of `r round(gini_records, 3)` for records across classes.
+**Results:** Data quality assessment identified issues in `r format(sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0), big.mark=",")` records (`r round(100 * sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0) / nrow(kenya_flagged), 1)`%), with coordinate-related problems being most common: `r format(quality_metrics$coordinate_quality$total_coord_flags, big.mark=",")` records (`r round(quality_metrics$coordinate_quality$percent_coord_flags, 1)`%) flagged by CoordinateCleaner tests. Different analyses applied different quality filters based on their requirements: spatial bias analysis required valid coordinates and species identification but retained records near cities (the bias being measured); temporal analysis required valid dates but not coordinates; taxonomic analysis required only species identification. Under a moderate filtering strategy (coordinates, species, dates, no coordinate errors), `r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$moderate_clean / quality_assessment$n_original, 1)`%) were retained. Our bias analyses revealed significant spatial, temporal, and taxonomic biases. Sampling effort was concentrated near major cities and roads, with strong positive spatial autocorrelation (Moran's I = `r round(moran_results$morans_i, 3)`, p < 0.001). Temporal analysis showed increasing trends in data collection, with `r round(temporal_stats$cv_records, 2)` coefficient of variation in annual records. Taxonomic coverage was highly uneven, with a Gini coefficient of `r round(gini_records, 3)` for records across classes.
 
-**Conclusions:** GBIF data for Kenya require substantial quality filtering and exhibit multiple forms of systematic bias that must be considered in biodiversity assessments. We provide detailed quantification of all data quality issues encountered, recommendations for targeted sampling to address identified gaps, and a reproducible framework applicable to other regions. This comprehensive approach to documenting both data quality and bias provides a template for transparent biodiversity data assessment.
+**Conclusions:** GBIF data for Kenya exhibit substantial quality issues and multiple forms of systematic bias that must be considered in biodiversity assessments. Our flagging approach allows different analyses to apply appropriate quality filters rather than using one-size-fits-all cleaning. We provide detailed quantification of all data quality flags, document which filters each analysis applies and why, provide recommendations for targeted sampling to address identified gaps, and present a reproducible framework applicable to other regions. This flexible, transparent approach to quality assessment and bias analysis provides a template for modern biodiversity data science.
 
 **Keywords:** GBIF, biodiversity data, data quality, sampling bias, Kenya, spatial bias, temporal bias, taxonomic bias, occAssess, reproducible research
 
@@ -122,15 +125,21 @@ Kenya, as a biodiversity hotspot with rich fauna and flora across diverse ecosys
 ## The Documentation Gap
 
 Most biodiversity studies using GBIF data apply quality filters but rarely document and quantify the specific issues encountered. Papers typically report only the final cleaned dataset size (e.g., "After quality filtering, 500,000 records remained"), without specifying:
-- How many records were removed at each filtering step
-- What specific quality issues were most prevalent
+- What specific quality issues were identified and in how many records
 - What percentage of records had coordinate errors, missing taxonomy, or duplicates
+- Which quality issues were filtered vs. flagged
+- Whether different analyses used different filtering strategies
 - Whether sampling biases were assessed and how they might affect conclusions
 
-This lack of transparency makes it difficult to:
-- Assess the reliability of cleaned datasets
+Furthermore, most studies apply a single, strict filtering strategy to all analyses, potentially:
+- Removing the very biases they should be measuring (e.g., filtering urban records when studying spatial bias)
+- Discarding records that would be valid for certain analyses (e.g., records without coordinates can still contribute to taxonomic assessments)
+- Applying unnecessarily strict standards that reduce sample size without improving analysis quality
+
+This lack of flexibility and transparency makes it difficult to:
+- Assess whether quality standards were appropriate for each specific analysis
 - Compare data quality across regions or taxonomic groups
-- Understand whether quality standards were appropriate for the research question
+- Understand fitness-for-use for different research questions
 - Replicate filtering procedures in other studies
 - Identify systemic issues that data providers could address
 
@@ -138,7 +147,7 @@ This lack of transparency makes it difficult to:
 
 Recent advances in biodiversity informatics have produced powerful tools for data quality assessment and bias detection. The occAssess R package [@marsh2023] provides a comprehensive framework for assessing biases in species occurrence data through spatial, temporal, and taxonomic analyses. The CoordinateCleaner package [@zizka2019] offers automated tools for identifying common coordinate quality issues such as institutional coordinates, country centroids, and statistical outliers.
 
-By combining these tools with transparent documentation of quality filtering steps, we can address the dual challenges of quality and bias in a systematic, reproducible way. Understanding both aspects is critical for:
+By combining these tools with a flexible flagging approach that documents quality issues without automatically removing records, we can address the dual challenges of quality and bias in a systematic, reproducible way. Understanding both aspects is critical for:
 
 1. **Assessing fitness-for-use**: Different research questions have different quality requirements. Fine-scale conservation planning needs higher coordinate precision than broad-scale macroecological studies.
 2. **Informing conservation prioritization**: Biased data can lead to biased conservation decisions, potentially overlooking under-sampled regions with high conservation value.
@@ -149,37 +158,44 @@ By combining these tools with transparent documentation of quality filtering ste
 
 ## Study Objectives
 
-This study provides the first comprehensive, reproducible assessment of both data quality issues and systematic biases in biodiversity data for Kenya using standardized methods. Unlike previous studies that focus on either quality or bias, we integrate both perspectives to provide a complete picture of data reliability and representativeness.
+This study provides the first comprehensive, reproducible assessment of both data quality issues and systematic biases in biodiversity data for Kenya using standardized methods. Unlike previous studies that focus on either quality or bias, we integrate both perspectives to provide a complete picture of data reliability and representativeness. Critically, we employ a **flagging approach** that identifies quality issues without automatically removing records, allowing each analysis to apply appropriate filters.
 
 Our specific objectives are to:
 
-1. **Systematically document all data quality issues** encountered during cleaning, reporting the number and percentage of records affected by each specific issue (missing coordinates, high uncertainty, missing taxonomy, temporal problems, duplicates, coordinate flags)
+1. **Systematically flag all data quality issues**, reporting the number and percentage of records affected by each specific issue (missing coordinates, high uncertainty, missing taxonomy, temporal problems, duplicates, coordinate flags), while retaining all records for flexible downstream use
 
-2. **Quantify spatial bias patterns** across Kenya using grid-based analyses, assess sampling completeness, and test for spatial autocorrelation to identify clustered vs. dispersed sampling
+2. **Document filtering decisions for each analysis**, explaining which quality flags are relevant for spatial, temporal, and taxonomic bias assessments, and why certain flags should NOT be filtered (e.g., urban bias is a signal, not noise)
 
-3. **Evaluate environmental bias** by comparing sampled locations to available environmental space, determining whether certain habitats, elevations, or climate zones are over- or under-represented
+3. **Quantify spatial bias patterns** across Kenya using grid-based analyses, assess sampling completeness, and test for spatial autocorrelation to identify clustered vs. dispersed sampling
 
-4. **Assess temporal patterns** in data collection, identify temporal gaps and trends, and quantify temporal completeness to understand how data availability varies over time
+4. **Evaluate environmental bias** by comparing sampled locations to available environmental space, determining whether certain habitats, elevations, or climate zones are over- or under-represented
 
-5. **Evaluate taxonomic bias** across major taxonomic groups using inequality metrics (Gini coefficients), diversity indices, and rarity analyses to identify which taxa are well-sampled vs. neglected
+5. **Assess temporal patterns** in data collection, identify temporal gaps and trends, and quantify temporal completeness to understand how data availability varies over time
 
-6. **Identify environmental and geographic predictors** of sampling effort using statistical models (GLMs and GAMs) to understand what drives sampling patterns (accessibility, urbanization, environmental conditions)
+6. **Evaluate taxonomic bias** across major taxonomic groups using inequality metrics (Gini coefficients), diversity indices, and rarity analyses to identify which taxa are well-sampled vs. neglected
 
-7. **Provide actionable recommendations** for targeted sampling to address identified gaps, enabling more strategic future data collection
+7. **Identify environmental and geographic predictors** of sampling effort using statistical models (GLMs and GAMs) to understand what drives sampling patterns (accessibility, urbanization, environmental conditions)
 
-8. **Present a reproducible framework** for comprehensive data quality and bias assessment that can be readily applied to other countries, regions, or taxonomic groups
+8. **Provide actionable recommendations** for targeted sampling to address identified gaps, enabling more strategic future data collection
 
-By achieving these objectives, we provide both a thorough assessment of Kenya's biodiversity data and a methodological template for transparent, reproducible data quality and bias assessment in biodiversity informatics.
+9. **Present a reproducible flagging framework** for comprehensive data quality and bias assessment that can be readily applied to other countries, regions, or taxonomic groups, with clear documentation of which filters are appropriate for different research questions
+
+By achieving these objectives, we provide both a thorough assessment of Kenya's biodiversity data and a methodological template for transparent, reproducible, and flexible data quality and bias assessment in biodiversity informatics.
 
 # Methods
 
 ## Data Acquisition and Cleaning
 
 ```{r load-data}
-# Load cleaned data
-kenya_data <- readRDS(file.path(data_processed, "kenya_gbif_clean.rds"))
+# Load flagged data (with quality flags, not filtered)
+kenya_flagged <- readRDS(file.path(data_processed, "kenya_gbif_flagged.rds"))
+
+# Also load metadata
 metadata <- readRDS(file.path(data_processed, "metadata.rds"))
 summary_stats <- readRDS(file.path(data_processed, "summary_stats.rds"))
+
+# For backward compatibility, also load cleaned data used by current analyses
+kenya_data <- readRDS(file.path(data_processed, "kenya_gbif_clean.rds"))
 ```
 
 ### Data Download
@@ -193,28 +209,54 @@ We downloaded species occurrence data for Kenya from GBIF using the `rgbif` pack
 
 These initial filters reduce download size and processing time while retaining the vast majority of usable records. However, additional quality filtering (documented below) is essential because GBIF's automated flags do not catch all quality issues.
 
-### Quality Filtering Rationale
+### Quality Flagging Approach
 
-Data cleaning followed a sequential filtering approach where each step removes specific categories of problematic records. The order of filtering steps matters: we first remove records with fundamental issues (e.g., missing coordinates) before applying more sophisticated tests (e.g., coordinate quality flags) to the remaining data. This sequential approach:
+Rather than automatically removing problematic records, we implemented a **flagging approach** that identifies quality issues while retaining all records. This approach recognizes that different analyses have different quality requirements and that some apparent "problems" (like urban bias) are actually the signals we want to measure.
 
-1. **Reduces computational burden**: Removing obviously bad records early speeds up later analyses
-2. **Prevents cascading errors**: Checking taxonomic completeness before coordinate quality avoids wasting time validating coordinates for records we'll exclude anyway
-3. **Enables precise tracking**: Each step's impact can be quantified independently
-4. **Facilitates sensitivity analyses**: Users can assess how different quality standards affect results
+Our flagging system adds boolean flag columns to each record indicating specific quality issues:
 
-The specific cleaning steps applied were:
+**Core Quality Flags:**
+- `flag_missing_coords`: Missing decimal latitude or longitude
+- `flag_high_uncertainty`: Coordinate uncertainty >10 km
+- `flag_inappropriate_basis`: Fossil or living specimens
+- `flag_missing_species`: No species-level identification
+- `flag_invalid_date`: Date before 1950 or in future
+- `flag_duplicate`: Exact duplicate record
 
-- **Removal of records with missing or invalid coordinates**: Essential for any spatial analysis; records without coordinates cannot be mapped or analyzed spatially
-- **Removal of records with coordinate uncertainty >10 km**: High uncertainty makes records unsuitable for fine-scale analyses. The 10 km threshold balances data retention with spatial precision requirements for most conservation applications
-- **Exclusion of fossil and living specimens**: These represent historical species occurrences or captive individuals, not current wild populations relevant to contemporary biodiversity assessment
-- **Removal of records without species-level identification**: Species is the fundamental unit for most biodiversity analyses. Records identified only to genus or family cannot contribute to species-specific questions
-- **Temporal filtering (1950-present)**: Focuses on recent biodiversity patterns while excluding historical records that often lack reliable georeferencing and may not reflect current distributions due to land use change
-- **Duplicate record removal**: The same observation may appear multiple times due to data aggregation from multiple sources, inflating species counts and sampling effort
-- **Coordinate cleaning using CoordinateCleaner**: Automated detection of common georeferencing errors such as swapped coordinates, institutional locations, country centroids, and statistical outliers [@zizka2019]
+**CoordinateCleaner Flags:**
+- `flag_coord_capitals`: Within 10km of country/province capitals
+- `flag_coord_centroids`: Within 5km of country/province centroids
+- `flag_coord_urban`: In major urban areas
+- `flag_coord_outliers`: Statistical outliers for the species
+- `flag_coord_equal`: Identical latitude and longitude values
+- `flag_coord_gbif`: At GBIF headquarters location
+- `flag_coord_zeros`: At (0,0) or near equator/prime meridian
+- `flag_any_coord_issue`: Any of the above coordinate issues
 
-### Cleaned Dataset Summary
+Each downstream analysis then applies filters appropriate to its specific requirements:
 
-The final cleaned dataset contained **`r format(nrow(kenya_data), big.mark=",")`** occurrence records representing **`r format(summary_stats$n_species, big.mark=",")`** species from **`r format(summary_stats$n_families, big.mark=",")`** families across **`r format(summary_stats$n_classes, big.mark=",")`** classes. This represents a substantial biodiversity knowledge base, though as we show in subsequent analyses, it exhibits significant quality issues and systematic biases that must be considered when using these data.
+- **Spatial bias analysis**: Filters missing coordinates and species, obvious errors (equal/GBIF/zeros), but **retains** urban/capital records (the bias being measured)
+- **Temporal bias analysis**: Filters invalid dates and missing species, but **does not require** coordinates
+- **Taxonomic bias analysis**: Filters only missing species (coordinates and dates irrelevant)
+- **Statistical models**: Applies strict filtering including outliers that would bias environmental relationships
+
+This flexible approach provides several advantages:
+
+1. **Preserves signal**: Biases we want to measure aren't filtered out
+2. **Maximizes data use**: Records useful for some analyses aren't discarded
+3. **Enables sensitivity analysis**: Different filter combinations can be tested
+4. **Improves transparency**: Each analysis documents its filtering rationale
+5. **Facilitates replication**: Other studies can apply appropriate filters
+
+### Flagged Dataset Summary
+
+The quality-flagged dataset contains **`r format(nrow(kenya_flagged), big.mark=",")`** occurrence records (all records from the original download). Under different filtering strategies, different numbers of records are retained:
+
+- **Strict filtering** (all flags pass): `r format(quality_assessment$clean_counts$strict_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$strict_clean / nrow(kenya_flagged), 1)`%)
+- **Moderate filtering** (coordinates, species, dates, no coordinate errors): `r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$moderate_clean / nrow(kenya_flagged), 1)`%)
+- **Minimal filtering** (coordinates and species only): `r format(quality_assessment$clean_counts$minimal_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$minimal_clean / nrow(kenya_flagged), 1)`%)
+
+The analyses in this manuscript primarily use moderate filtering, representing **`r format(summary_stats$n_species, big.mark=",")`** species from **`r format(summary_stats$n_families, big.mark=",")`** families across **`r format(summary_stats$n_classes, big.mark=",")`** classes.
 
 ```{r data-summary-table}
 # Create summary table
@@ -250,19 +292,21 @@ coord_issues <- quality_assessment$coord_issues
 quality_metrics <- quality_assessment$metrics
 ```
 
-To comprehensively document data quality issues, we implemented a systematic tracking framework that quantifies every quality filter applied during data cleaning. Each filter was applied sequentially, and the number of records removed at each step was recorded along with the percentage relative to the original dataset (`r format(quality_assessment$n_original, big.mark=",")` records).
+To comprehensively document data quality issues, we implemented a systematic **flagging framework** that identifies quality issues while retaining all records. Each issue type is flagged with a boolean column, and the number of records flagged at each step was recorded along with the percentage relative to the original dataset (`r format(quality_assessment$n_original, big.mark=",")` records).
 
-### Quality Filtering Steps
+### Quality Flagging Categories
 
-The data cleaning process consisted of seven major filtering steps:
+The quality flagging process identified seven major categories of issues:
 
-1. **Missing Coordinates:** Removal of records lacking decimal latitude or longitude values
-2. **High Coordinate Uncertainty:** Exclusion of records with coordinate uncertainty exceeding 10 km
-3. **Inappropriate Basis of Record:** Removal of fossil specimens and living specimens (not representing natural occurrences)
-4. **Missing Species Identification:** Exclusion of records without species-level taxonomic identification
-5. **Invalid Dates:** Removal of records with dates before 1950 or in the future
-6. **Duplicate Records:** Elimination of exact duplicates based on species, coordinates, and date
-7. **Coordinate Quality Flags:** Application of seven CoordinateCleaner tests to identify potentially erroneous coordinates
+1. **Missing Coordinates:** `r sum(kenya_flagged$flag_missing_coords)` records (`r round(100*sum(kenya_flagged$flag_missing_coords)/nrow(kenya_flagged), 1)`%) lacking decimal latitude or longitude values
+2. **High Coordinate Uncertainty:** `r sum(kenya_flagged$flag_high_uncertainty, na.rm=TRUE)` records (`r round(100*sum(kenya_flagged$flag_high_uncertainty, na.rm=TRUE)/nrow(kenya_flagged), 1)`%) with coordinate uncertainty exceeding 10 km
+3. **Inappropriate Basis of Record:** `r sum(kenya_flagged$flag_inappropriate_basis)` records (`r round(100*sum(kenya_flagged$flag_inappropriate_basis)/nrow(kenya_flagged), 1)`%) representing fossil or living specimens
+4. **Missing Species Identification:** `r sum(kenya_flagged$flag_missing_species)` records (`r round(100*sum(kenya_flagged$flag_missing_species)/nrow(kenya_flagged), 1)`%) without species-level taxonomic identification
+5. **Invalid Dates:** `r sum(kenya_flagged$flag_invalid_date)` records (`r round(100*sum(kenya_flagged$flag_invalid_date)/nrow(kenya_flagged), 1)`%) with dates before 1950 or in the future
+6. **Duplicate Records:** `r sum(kenya_flagged$flag_duplicate)` records (`r round(100*sum(kenya_flagged$flag_duplicate)/nrow(kenya_flagged), 1)`%) identified as exact duplicates
+7. **Coordinate Quality Flags:** `r sum(kenya_flagged$flag_any_coord_issue)` records (`r round(100*sum(kenya_flagged$flag_any_coord_issue)/nrow(kenya_flagged), 1)`%) flagged by one or more CoordinateCleaner tests
+
+**Key Insight:** `r format(sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0), big.mark=",")` total records (`r round(100 * sum(rowSums(kenya_flagged[,grepl("^flag_", names(kenya_flagged))]) > 0) / nrow(kenya_flagged), 1)`%) have at least one quality flag, but different analyses filter different flags based on their requirements.
 
 ### CoordinateCleaner Tests
 
@@ -282,17 +326,25 @@ The CoordinateCleaner package [@zizka2019] implements automated tests to identif
 
 - **Outliers Test:** Uses statistical methods to detect coordinates that are geographically distant from other records of the same species. The test employs a quantile-based approach, flagging records in the outer 5% of distance distributions for species with sufficient records (≥10). Outliers may indicate misidentifications, transcription errors (e.g., coordinate decimal place errors), or valid range extensions requiring verification.
 
-**Important Note:** Each test is independent, so a single record can be flagged by multiple tests. The final quality metric counts unique records flagged by ANY test, not the sum of individual test flags. Records flagged by any test were removed from the final dataset to ensure high coordinate quality, though researchers with different requirements could apply less stringent criteria.
+**Important Note:** Each test is independent, so a single record can be flagged by multiple tests. The `flag_any_coord_issue` column indicates records flagged by ANY test. **Critically, records are flagged but not automatically removed.** Each downstream analysis decides which flags to filter:
 
-### Quality Metrics
+- **Spatial bias analysis** RETAINS capital/urban/centroid flags (these ARE the bias!)
+- **Temporal bias analysis** IGNORES coordinate flags (not relevant to temporal patterns)
+- **Statistical models** FILTERS outliers (would bias environmental relationships)
+- **Taxonomic analysis** IGNORES all coordinate flags (taxonomy not location-dependent)
 
-We calculated comprehensive quality metrics to characterize the cleaned dataset:
+This flexible approach ensures we don't remove the very biases we're trying to measure while still identifying problematic coordinates for analyses that need spatial precision.
 
-- **Data Retention Rate:** Percentage of original records retained after all quality filters
-- **Taxonomic Completeness:** Proportion of records with complete taxonomic information at each hierarchical level (kingdom through species)
-- **Temporal Completeness:** Proportion of records with valid dates within the specified temporal range
-- **Coordinate Quality:** Distribution of coordinate uncertainty values and prevalence of coordinate quality issues
-- **Duplicate Rate:** Proportion of records identified as exact duplicates
+### Filtering Strategies and Data Retention
+
+Since records are flagged rather than removed, we can assess data retention under different filtering strategies:
+
+- **No filtering (all records):** `r format(nrow(kenya_flagged), big.mark=",")` records (100%)
+- **Minimal filtering** (coordinates + species only): `r format(quality_assessment$clean_counts$minimal_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$minimal_clean / nrow(kenya_flagged), 1)`%)
+- **Moderate filtering** (+ dates + coordinate errors): `r format(quality_assessment$clean_counts$moderate_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$moderate_clean / nrow(kenya_flagged), 1)`%)
+- **Strict filtering** (all flags must pass): `r format(quality_assessment$clean_counts$strict_clean, big.mark=",")` records (`r round(100 * quality_assessment$clean_counts$strict_clean / nrow(kenya_flagged), 1)`%)
+
+**The analyses in this manuscript primarily use moderate filtering**, which retains records suitable for spatial and temporal bias assessment while removing clear errors. Different research questions may justify different filtering strategies - this is the advantage of the flagging approach.
 
 ## Spatial Bias Assessment
 
