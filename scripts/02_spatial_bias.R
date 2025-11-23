@@ -211,11 +211,11 @@ kenya_grid_complete <- kenya_grid_complete %>%
 message("\n=== Running occAssess assessments ===")
 
 # Prepare data for occAssess with taxonomic levels (data.frame format required)
-# Note: kenya_data is a regular data.frame (not sf object), so this should work
+# Use dplyr::select explicitly to avoid namespace conflicts (e.g., with MASS::select)
 kenya_df <- kenya_data %>%
-  select(species, genus, family, order, class, phylum, kingdom,
-         decimalLongitude, decimalLatitude, coordinateUncertaintyInMeters,
-         eventDate, year)
+  dplyr::select(species, genus, family, order, class, phylum, kingdom,
+                decimalLongitude, decimalLatitude, coordinateUncertaintyInMeters,
+                eventDate, year)
 
 # Ensure it's a plain data.frame (not tibble or other class)
 kenya_df <- as.data.frame(kenya_df)
@@ -428,13 +428,13 @@ bg_env <- data.frame(
 
 # Environmental values for occurrences
 occ_env <- kenya_data_env %>%
-  select(elevation, temperature = bio1_temp, precipitation = bio12_precip) %>%
+  dplyr::select(elevation, temperature = bio1_temp, precipitation = bio12_precip) %>%
   filter(!is.na(elevation)) %>%
   mutate(type = "sampled")
 
 # Combine for comparison
 env_comparison <- bind_rows(
-  occ_env %>% select(type, elevation, temperature, precipitation),
+  occ_env %>% dplyr::select(type, elevation, temperature, precipitation),
   bg_env %>% filter(!is.na(elevation))
 )
 
