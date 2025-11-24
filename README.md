@@ -1,25 +1,45 @@
-# Comprehensive Data Quality Assessment and Bias Analysis of GBIF Data in Kenya
+# Comprehensive Data Quality Assessment and Cleaning: A Case Study Using GBIF Biodiversity Data from Kenya
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
-This repository contains a comprehensive, reproducible analysis of **data quality issues** and **systematic biases** in Global Biodiversity Information Facility (GBIF) occurrence data for Kenya. The analysis provides transparent documentation of all quality filters applied during data cleaning, quantifying the number and percentage of records affected by each issue. It also uses the `occAssess` R package and modern statistical methods to quantify spatial, temporal, and taxonomic biases and identify gaps in biodiversity data coverage.
+This repository presents a **comprehensive, reproducible framework for data quality assessment and cleaning**, demonstrated through application to biodiversity occurrence data. Using Global Biodiversity Information Facility (GBIF) data from Kenya as a case study, this framework provides transparent documentation of quality control procedures, systematic bias assessment, and gap analysis methods that can be adapted to any large-scale observational dataset.
+
+The framework emphasizes:
+- **Transparent data cleaning workflows** with systematic documentation of all quality filters and their impacts
+- **Quantitative bias assessment** across spatial, temporal, and taxonomic dimensions
+- **Reproducible methods** that can be applied to other datasets, regions, or research domains
+- **Educational design** suitable for teaching data quality principles and reproducible research practices
+
+While demonstrated using GBIF biodiversity data from Kenya, the methods, visualizations, and quality control procedures implemented here serve as a general template for assessing and improving data quality in any large observational dataset with spatial, temporal, and categorical components.
 
 ## Key Features
 
-- **Comprehensive data quality tracking**: Systematic documentation and quantification of all quality issues (missing coordinates, coordinate uncertainty, duplicates, taxonomic completeness, etc.)
-- **Transparent quality reporting**: Detailed breakdown of records removed at each filtering step with percentages relative to original dataset
-- **CoordinateCleaner integration**: Seven independent coordinate quality tests with individual issue quantification
-- **Interactive visualizations**: Dynamic tables, charts, and maps for hands-on exploration (educational)
-- **Function flow documentation**: Complete traceability from raw data to final results
-- **Reproducible workflow**: All analyses are fully reproducible using R scripts and R Markdown
-- **Multi-dimensional bias assessment**: Spatial, temporal, and taxonomic dimensions analyzed
-- **Statistical modeling**: GLMs and GAMs to identify predictors of sampling effort
-- **Publication-ready outputs**: Figures, tables, and compiled manuscript
-- **Educational design**: Perfect for teaching reproducible research and biodiversity informatics
-- **Open science**: All code, data, and documentation openly available
+### Data Quality Framework
+- **Systematic quality tracking**: Comprehensive documentation and quantification of data quality issues at each cleaning step
+- **Transparent quality reporting**: Detailed breakdown of records affected by each filter with counts and percentages
+- **Modular quality checks**: Independent tests for coordinate validity, taxonomic completeness, temporal consistency, and duplicates
+- **Sensitivity analysis**: Comparison of different filtering strategies to assess robustness
+
+### Bias Assessment Methods
+- **Multi-dimensional bias analysis**: Spatial, temporal, and taxonomic dimensions assessed independently
+- **Statistical modeling**: GLMs and GAMs to identify systematic predictors of sampling patterns
+- **Gap identification**: Quantitative methods to detect undersampled regions, time periods, and taxa
+- **Accessibility bias quantification**: Analysis of infrastructure and environmental influences on sampling
+
+### Reproducibility & Transparency
+- **Complete function flow documentation**: Every output traced back to source code with line numbers
+- **Reproducible workflow**: All analyses fully reproducible using documented R scripts
+- **Interactive visualizations**: Dynamic tables, charts, and maps for hands-on exploration
+- **Educational design**: Suitable for teaching data quality principles, bias assessment, and reproducible research
+
+### Adaptability & Reusability
+- **Framework approach**: Methods designed for adaptation to other datasets, regions, or domains
+- **Well-documented code**: Modular functions with clear parameters and comments
+- **Customization guides**: Instructions for adapting to different countries, grid resolutions, or taxonomic groups
+- **Open science**: All code, data, and documentation openly available under MIT license
 
 ## Project Structure
 
@@ -255,9 +275,9 @@ rmarkdown::render("docs/kenya_gbif_bias_assessment.Rmd",
 
 Generates publication-ready documents in HTML, PDF, and Word formats.
 
-## Key Results
+## Key Results from the Kenya Case Study
 
-Our analysis of GBIF data for Kenya reveals:
+Applying the framework to GBIF data from Kenya reveals typical patterns found in large observational datasets:
 
 ### Spatial Bias
 - **Strong clustering**: Moran's I indicates significant spatial autocorrelation
@@ -322,19 +342,28 @@ See **`docs/FUNCTION_FLOW.md`** for comprehensive documentation mapping every ta
 
 ### Educational Use Cases
 
-This project is designed for teaching:
+This framework is designed for teaching fundamental data science concepts:
 
-1. **Reproducible Research**: Students can trace results back to raw data
-2. **Biodiversity Informatics**: Demonstrates data quality assessment workflows
-3. **Spatial Statistics**: Shows spatial autocorrelation and bias analysis
-4. **Data Visualization**: Examples of static and interactive visualizations
-5. **R Programming**: Well-documented code with reusable functions
+1. **Data Quality Principles**: Demonstrates systematic approaches to identifying and addressing data quality issues
+2. **Reproducible Research**: Students can trace every result back to raw data and source code
+3. **Bias Assessment Methods**: Shows how to quantify and visualize systematic biases in observational data
+4. **Spatial Statistics**: Examples of spatial autocorrelation, clustering analysis, and environmental niche modeling
+5. **Data Visualization**: Both static (publication-ready) and interactive (exploratory) visualization techniques
+6. **Statistical Modeling**: GLMs and GAMs for identifying predictors and quantifying relationships
+7. **R Programming**: Well-documented, modular code with reusable functions
+
+**Beyond Biodiversity**: While using biodiversity data, the methods apply broadly to any observational dataset:
+- Public health surveillance data (spatial, temporal, and demographic patterns)
+- Environmental monitoring networks (sensor placement bias, temporal gaps)
+- Social science surveys (geographic sampling bias, response patterns)
+- Citizen science projects (participation patterns, quality control)
 
 **For Educators**: The interactive features allow students to:
 - Explore patterns hands-on rather than passively viewing
-- Test "what-if" scenarios by filtering and sorting
-- Understand the impact of quality control decisions
+- Test "what-if" scenarios by filtering and sorting data
+- Understand the impact of different quality control decisions
 - See exactly which code generated which results
+- Learn transferable skills applicable to any observational dataset
 
 **Function Flow Reference**: `docs/FUNCTION_FLOW.md` provides a complete learning pathway from beginner to advanced, with code explanations and educational notes.
 
@@ -387,14 +416,14 @@ kenya_grid <- st_make_grid(
 
 ## Citation
 
-If you use this code or analysis framework, please cite:
+If you use this framework, code, or methods, please cite:
 
 ```
-Kwiz Computing Technologies (2025). Spatial, Temporal, and Taxonomic Bias Assessment of GBIF
-Biodiversity Data in Kenya. GitHub repository:
+Kwiz Computing Technologies (2025). Comprehensive Data Quality Assessment and Cleaning:
+A Case Study Using GBIF Biodiversity Data from Kenya. GitHub repository:
 https://github.com/username/Gbif-Kenya
 
-GBIF data citation:
+GBIF data citation (for Kenya case study):
 GBIF.org (DD Month YYYY) GBIF Occurrence Download https://doi.org/10.15468/dl.XXXXXX
 ```
 
