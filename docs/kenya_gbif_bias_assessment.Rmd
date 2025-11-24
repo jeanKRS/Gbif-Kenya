@@ -542,6 +542,8 @@ The quality-flagged dataset contains ***`r format(nrow(kenya_flagged), big.mark=
 
 The analyses in this manuscript primarily use moderate filtering, representing ***`r format(summary_stats$n_species, big.mark=",")`*** species from ***`r format(summary_stats$n_families, big.mark=",")`*** families across ***`r format(summary_stats$n_classes, big.mark=",")`*** classes.
 
+<a id="table-1"></a>
+
 ```{r data-summary-table}
 # Create summary table
 summary_table <- data.frame(
@@ -561,8 +563,6 @@ summary_table <- data.frame(
     format(round(summary_stats$coord_uncertainty_median), big.mark = ",")
   )
 )
-
-<a id="table-1"></a>
 
 # Display as interactive table with function flow annotation
 create_interactive_table(
