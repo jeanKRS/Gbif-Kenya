@@ -49,10 +49,11 @@ document.addEventListener("DOMContentLoaded", function() {
 <div style="background-color: #f0f0f0; padding: 15px; border-left: 5px solid #3498db; margin-bottom: 20px;">
 **IMPORTANT NOTICE:** This document represents an independent analysis conducted to satisfy scientific curiosity and advance biodiversity data science methods. It has **not undergone formal peer review** and should not be cited as a peer-reviewed publication. While the methods employed follow established scientific standards and best practices in biodiversity informatics, the findings and interpretations presented here are preliminary and subject to revision. This work is shared openly to:
 
-1. Demonstrate reproducible workflows for biodiversity data quality assessment
+1. Demonstrate reproducible workflows for (biodiversity) data quality assessment
 2. Provide a comprehensive baseline for Kenya's GBIF data quality and coverage
-3. Facilitate discussion and collaboration on biodiversity data science methods
+3. Facilitate discussion and collaboration on reproducible (biodiversity) data science methods
 4. Support informed use of GBIF data by researchers and conservation practitioners
+5. Showcase R, just for the love of R!
 
 Users of this analysis should exercise appropriate scientific judgment and consider conducting additional validation for critical applications. Feedback, suggestions, and collaborative refinement of these methods are welcome.
 </div>
