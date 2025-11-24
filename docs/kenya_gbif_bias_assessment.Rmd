@@ -3002,7 +3002,7 @@ The model explains sampling patterns based on elevation, temperature, and precip
 - Regions with active citizen science communities
 - Areas with restricted access or security concerns
 
-Under-sampled areas (red) represent priority targets for future sampling efforts, as they are under-represented even after accounting for their environmental characteristics.
+Under-sampled areas (blue) represent priority targets for future sampling efforts, as they are under-represented even after accounting for their environmental characteristics.
 
 ```{r interactive-bias-map, fig.cap="Interactive sampling bias map showing standardized residuals from GLM. Blue = under-sampled (fewer records than predicted), Red = over-sampled (more than predicted). Click cells to see actual vs predicted values."}
 # Load spatial grid and model predictions separately
@@ -3032,7 +3032,7 @@ if (file.exists(spatial_grid_file) && file.exists(grid_pred_file)) {
   rng <- max(abs(grid_wgs84$residual_std), na.rm = TRUE)
   
   pal_residual <- colorNumeric(
-    palette = colorRampPalette(c("#B2182B", "grey", "#2166AC"))(1000),
+    palette = colorRampPalette(c("#2166AC", "grey", "#B2182B"))(1000),
     domain = c(-rng, rng),
     na.color = "transparent")
   
