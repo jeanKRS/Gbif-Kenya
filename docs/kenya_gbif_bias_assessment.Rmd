@@ -2712,16 +2712,110 @@ kable(top_10_classes, caption = "Table 10: Top 10 taxonomic classes by number of
                 full_width = FALSE, font_size = 11)
 ```
 
-```{r fig-taxonomic-treemap, fig.cap="Treemap showing relative representation of top 15 taxonomic classes in GBIF Kenya data. Area represents number of records, color represents number of species."}
-knitr::include_graphics(here("figures", "10_taxonomic_treemap.png"))
+```{r interactive-taxonomic-treemap, fig.cap="Interactive treemap of top 15 taxonomic classes. Hover to see exact counts, size represents number of records, color represents species diversity."}
+# Create interactive treemap using plotly
+top_15_classes <- head(class_summary, 15)
+
+fig_treemap <- plot_ly(
+  data = top_15_classes,
+  type = "treemap",
+  labels = ~class,
+  parents = rep("", nrow(top_15_classes)),
+  values = ~n_records,
+  marker = list(
+    colorscale = 'Viridis',
+    cmid = median(top_15_classes$n_species),
+    colorbar = list(title = "Species Count")
+  ),
+  text = ~paste0(
+    "<b>", class, "</b><br>",
+    "Records: ", format(n_records, big.mark = ","), "<br>",
+    "Species: ", format(n_species, big.mark = ","), "<br>",
+    "Families: ", n_families
+  ),
+  hovertemplate = '%{text}<extra></extra>',
+  textposition = "middle center",
+  pathbar = list(visible = FALSE)
+) %>%
+  layout(
+    title = list(
+      text = "Taxonomic Representation in GBIF Kenya Data (Top 15 Classes)",
+      font = list(size = 16)
+    ),
+    margin = list(l = 0, r = 0, t = 40, b = 0)
+  )
+
+fig_treemap
 ```
 
 ### Taxonomic Inequality
 
 The Lorenz curve (Figure 5) illustrates the concentration of records among taxonomic classes. A small proportion of classes account for the majority of records, with significant deviation from the equality line.
 
-```{r fig-lorenz, fig.cap="Lorenz curve showing taxonomic inequality in record distribution across classes. The dashed red line represents perfect equality; deviation indicates concentration of records in few classes."}
-knitr::include_graphics(here("figures", "11_lorenz_curve.png"))
+```{r interactive-lorenz-curve, fig.cap="Interactive Lorenz curve showing taxonomic inequality. Hover to see exact cumulative proportions. The dashed red line represents perfect equality."}
+# Create Lorenz curve data from class_summary
+tax_proportions <- class_summary %>%
+  arrange(n_records) %>%
+  mutate(
+    prop_records = n_records / sum(n_records),
+    cumsum_records = cumsum(prop_records),
+    prop_classes = row_number() / n(),
+    cumsum_classes = prop_classes
+  )
+
+# Create interactive Lorenz curve
+fig_lorenz <- plot_ly() %>%
+  # Add perfect equality line (diagonal)
+  add_trace(
+    x = c(0, 1),
+    y = c(0, 1),
+    type = 'scatter',
+    mode = 'lines',
+    name = 'Perfect Equality',
+    line = list(color = 'red', dash = 'dash', width = 2),
+    hovertemplate = 'Perfect Equality Line<extra></extra>'
+  ) %>%
+  # Add actual Lorenz curve
+  add_trace(
+    data = tax_proportions,
+    x = ~cumsum_classes,
+    y = ~cumsum_records,
+    type = 'scatter',
+    mode = 'lines',
+    name = 'Actual Distribution',
+    line = list(color = '#2E86AB', width = 3),
+    hovertemplate = paste0(
+      '<b>Cumulative Distribution</b><br>',
+      'Classes: %{x:.1%}<br>',
+      'Records: %{y:.1%}<br>',
+      '<extra></extra>'
+    ),
+    fill = 'tonexty',
+    fillcolor = 'rgba(46, 134, 171, 0.2)'
+  ) %>%
+  layout(
+    title = list(
+      text = sprintf("Taxonomic Inequality: Lorenz Curve<br><sub>Gini Coefficient = %.3f</sub>", gini_records),
+      font = list(size = 16)
+    ),
+    xaxis = list(
+      title = "Cumulative Proportion of Classes",
+      tickformat = ".0%",
+      range = c(0, 1)
+    ),
+    yaxis = list(
+      title = "Cumulative Proportion of Records",
+      tickformat = ".0%",
+      range = c(0, 1)
+    ),
+    hovermode = 'closest',
+    showlegend = TRUE,
+    legend = list(x = 0.1, y = 0.9),
+    margin = list(l = 60, r = 40, t = 80, b = 60)
+  ) %>%
+  config(displayModeBar = TRUE)
+
+fig_lorenz
 ```
 
 ### Species Rarity
@@ -2889,8 +2983,75 @@ The model explains sampling patterns based on distance to cities, elevation, cli
 
 Under-sampled areas (blue) represent priority targets for future sampling efforts, as they are under-represented even after accounting for their environmental and geographic characteristics.
 
-```{r fig-bias-map, fig.cap="Figure 10: Sampling bias map showing standardized residuals from the negative binomial GLM. Blue areas are under-sampled relative to environmental/geographic predictors (fewer records than predicted), red areas are over-sampled (more records than predicted). Note: This shows deviations from expected patterns, not raw sampling effort. Areas close to cities can be under-sampled if their actual sampling is lower than the model predicts given their accessibility."}
-knitr::include_graphics(here("figures", "22_sampling_bias_map.png"))
+```{r interactive-bias-map, fig.cap="Interactive sampling bias map showing standardized residuals from GLM. Blue = under-sampled (fewer records than predicted), Red = over-sampled (more than predicted). Click cells to see actual vs predicted values."}
+# Load grid with predictions and residuals
+grid_pred_file <- file.path(data_outputs, "grid_with_predictions.rds")
+
+if (file.exists(grid_pred_file)) {
+  grid_with_pred <- readRDS(grid_pred_file)
+
+  # Transform to WGS84 for leaflet
+  grid_wgs84 <- st_transform(grid_with_pred, 4326)
+
+  # Create diverging color palette for residuals (blue-white-red)
+  pal_residual <- colorNumeric(
+    palette = colorRampPalette(c("#2166AC", "#F7F7F7", "#B2182B"))(100),
+    domain = grid_wgs84$residual_std,
+    na.color = "transparent"
+  )
+
+  # Create interactive map
+  leaflet(grid_wgs84) %>%
+    addProviderTiles("OpenStreetMap") %>%
+    addPolygons(
+      fillColor = ~pal_residual(residual_std),
+      fillOpacity = 0.6,
+      color = "white",
+      weight = 0.5,
+      popup = ~paste0(
+        "<strong>Sampling Bias Analysis</strong><br>",
+        "<b>Observed:</b> ", format(n_records, big.mark = ","), " records<br>",
+        "<b>Predicted:</b> ", format(round(predicted_count), big.mark = ","), " records<br>",
+        "<b>Residual:</b> ", round(residual, 1), "<br>",
+        "<b>Std. Residual:</b> ", round(residual_std, 2), "<br>",
+        "<hr>",
+        ifelse(residual_std < -1, "<b style='color: blue;'>Under-sampled</b>",
+               ifelse(residual_std > 1, "<b style='color: red;'>Over-sampled</b>",
+                      "<b>As expected</b>"))
+      ),
+      highlightOptions = highlightOptions(
+        weight = 2,
+        color = "#666",
+        fillOpacity = 0.8,
+        bringToFront = TRUE
+      )
+    ) %>%
+    addLegend(
+      pal = pal_residual,
+      values = ~residual_std,
+      title = "Std. Residual",
+      position = "bottomright",
+      opacity = 0.8,
+      labFormat = labelFormat(
+        prefix = "",
+        suffix = "",
+        between = " to ",
+        digits = 1
+      )
+    ) %>%
+    addControl(
+      html = "<div style='background: white; padding: 10px; border-radius: 5px; max-width: 250px;'>
+              <strong>Sampling Bias Map</strong><br>
+              <span style='color: #2166AC;'>■</span> Under-sampled (negative residuals)<br>
+              <span style='color: #F7F7F7;'>■</span> As predicted by model<br>
+              <span style='color: #B2182B;'>■</span> Over-sampled (positive residuals)<br>
+              <small><i>Residuals show deviation from GLM predictions</i></small>
+              </div>",
+      position = "topright"
+    )
+} else {
+  cat("Grid with predictions not found. Please run scripts/05_statistical_models.R first.\n")
+}
 ```
 
 # Discussion
