@@ -2105,6 +2105,8 @@ With less than *`r round(effort_summary$percent_covered, 1)`*% of Kenya's area c
 - Spatial biodiversity patterns and gradients
 - Conservation planning that assumes comprehensive species distribution knowledge
 
+<a id="interactive-sampling-map"></a>
+
 ```{r interactive-sampling-map, fig.cap="Interactive map of sampling effort across Kenya. Click on cells to see detailed statistics, zoom to explore different regions. Hexagons are semi-transparent to show underlying towns and roads."}
 # Interactive Leaflet Map of Sampling Effort Distribution
 # Requires spatial grid data from scripts/02_spatial_bias.R
@@ -2352,6 +2354,8 @@ kable(env_bias_table,
       booktabs = TRUE) %>%
   kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
 ```
+
+<a id="interactive-environmental-bias"></a>
 
 ```{r interactive-environmental-bias, fig.cap="Interactive environmental bias assessment. Hover over the distributions to see density values and explore the differences between sampled and available environmental space."}
 # Load environmental comparison data
@@ -2766,6 +2770,8 @@ kable(top_10_classes, caption = "Table 10: Top 10 taxonomic classes by number of
                 full_width = FALSE, font_size = 11)
 ```
 
+<a id="interactive-taxonomic-treemap"></a>
+
 ```{r interactive-taxonomic-treemap, fig.cap="Interactive treemap of top 15 taxonomic classes. Hover to see exact counts, size represents number of records, color represents species diversity."}
 # Create interactive treemap using plotly
 top_15_classes <- head(class_summary, 15)
@@ -2805,6 +2811,8 @@ fig_treemap
 ### Taxonomic Inequality
 
 The <a id="lorenz-curve"></a>[**Lorenz curve**](#interactive-lorenz-curve) illustrates the concentration of records among taxonomic classes. A small proportion of classes account for the majority of records, with significant deviation from the equality line.
+
+<a id="interactive-lorenz-curve"></a>
 
 ```{r interactive-lorenz-curve, fig.cap="Interactive Lorenz curve showing taxonomic inequality. Hover to see exact cumulative proportions. The dashed red line represents perfect equality."}
 # Create Lorenz curve data from class_summary
@@ -3045,6 +3053,8 @@ The model explains sampling patterns based on elevation, temperature, and precip
 - Areas with restricted access or security concerns
 
 Under-sampled areas (blue) represent priority targets for future sampling efforts, as they are under-represented even after accounting for their environmental characteristics.
+
+<a id="interactive-bias-map"></a>
 
 ```{r interactive-bias-map, fig.cap="Interactive sampling bias map showing standardized residuals from GLM. Blue = under-sampled (fewer records than predicted), Red = over-sampled (more than predicted). Click cells to see actual vs predicted values."}
 # Load spatial grid and model predictions separately
@@ -3809,6 +3819,8 @@ sessionInfo()
 
 # Appendix: Additional Figures
 
+<a id="interactive-species-richness-map"></a>
+
 ```{r interactive-species-richness-map, fig.cap="Appendix Figure A1: Interactive species richness map of Kenya. Click on cells to see detailed statistics, zoom to explore patterns. Hexagons are semi-transparent to show underlying geography."}
 # Interactive Leaflet Map of Species Richness
 spatial_grid_file <- file.path(data_outputs, "spatial_grid_effort.rds")
@@ -3868,6 +3880,8 @@ if (file.exists(spatial_grid_file)) {
   cat("Spatial grid data not found. Please run scripts/02_spatial_bias.R first.\n")
 }
 ```
+
+<a id="interactive-temporal-by-class"></a>
 
 ```{r interactive-temporal-by-class, fig.cap="Appendix Figure A2: Interactive temporal trends by taxonomic class. Hover over lines to see exact values, click legend items to show/hide classes."}
 # Load and prepare data for interactive temporal trends by class
@@ -3943,6 +3957,8 @@ if (file.exists(kenya_data_file)) {
   cat("Kenya data file not found. Please run scripts/01_data_download.R first.\n")
 }
 ```
+
+<a id="fig-appendix-rarity-interactive"></a>
 
 ```{r fig-appendix-rarity-interactive, fig.cap="Appendix Figure A3: Interactive distribution of species by rarity class. Hover to see exact counts."}
 # Create interactive rarity distribution bar chart
