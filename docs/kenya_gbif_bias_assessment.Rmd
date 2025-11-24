@@ -1714,7 +1714,8 @@ knitr::include_graphics(here("figures", "data_quality_filter_levels.png"))
 
 ### Quality Flag Summary
 
-Table 2 presents the detailed breakdown of quality flags applied to the dataset. Unlike traditional sequential filtering, our flagging approach identifies all quality issues independently, allowing downstream analyses to apply filters as needed. The most prevalent data quality issues were:
+<a id="table-2"></a>
+[**Table 2**](#table-2) presents the detailed breakdown of quality flags applied to the dataset. Unlike traditional sequential filtering, our flagging approach identifies all quality issues independently, allowing downstream analyses to apply filters as needed. The most prevalent data quality issues were:
 
 ```{r quality-flag-table}
 # Create formatted quality tracking table
@@ -1740,7 +1741,8 @@ kable(quality_table,
   column_spec(2, width = "7cm")
 ```
 
-Figure 3 visualizes the quality flag frequencies, showing the number of records flagged for each quality issue (hover over bars for details).
+<a id="figure-3"></a>
+[**Figure 3**](#figure-3) visualizes the quality flag frequencies, showing the number of records flagged for each quality issue (hover over bars for details).
 
 ```{r fig-quality-flags-interactive, fig.cap="Interactive quality flag frequencies. Hover over bars to see exact counts and percentages."}
 # Create interactive plotly bar chart
@@ -1795,7 +1797,7 @@ total_coord_flagged <- quality_metrics$coordinate_quality$total_coord_flags
 pct_coord_flagged <- quality_metrics$coordinate_quality$percent_coord_flags
 ```
 
-The seven CoordinateCleaner tests identified a total of ***`r format(total_coord_flagged, big.mark=",")`*** records with potentially problematic coordinates, representing ***`r round(pct_coord_flagged, 1)`*%** of the original dataset. Table 3 presents the detailed breakdown of coordinate quality issues.
+The seven CoordinateCleaner tests identified a total of ***`r format(total_coord_flagged, big.mark=",")`*** records with potentially problematic coordinates, representing ***`r round(pct_coord_flagged, 1)`*%** of the original dataset. <a id="table-3"></a>[**Table 3**](#table-3) presents the detailed breakdown of coordinate quality issues.
 
 **Interpretation**: The *`r round(pct_coord_flagged, 1)`*% of records flagged for coordinate quality issues highlights a substantial problem with georeferencing accuracy in the dataset. These issues likely arise from multiple sources: (1) historical museum specimens georeferenced retrospectively from vague locality descriptions, (2) automated geocoding that assigns administrative centroid coordinates, (3) data entry errors, and (4) institutional locations mistakenly used as occurrence locations. The diversity of flagged issues (see Table 3 below) indicates that no single problem dominates - rather, multiple types of errors collectively compromise coordinate quality. Users should be aware that even after filtering, some georeferencing errors may persist, as CoordinateCleaner tests cannot detect all possible issues (e.g., coordinates that are slightly wrong but not statistical outliers).
 
@@ -1825,7 +1827,7 @@ kable(coord_table,
   column_spec(2, width = "7cm")
 ```
 
-The most common coordinate quality issue was ***`r top_coord_issue$test`***, affecting ***`r format(top_coord_issue$records_flagged, big.mark=",")`*** records (*`r round(top_coord_issue$percent_of_original, 2)`*% of the original dataset). Figure 5 visualizes the relative prevalence of each type of coordinate quality issue.
+The most common coordinate quality issue was ***`r top_coord_issue$test`***, affecting ***`r format(top_coord_issue$records_flagged, big.mark=",")`*** records (*`r round(top_coord_issue$percent_of_original, 2)`*% of the original dataset). <a id="figure-5"></a>[**Figure 5**](#figure-5) visualizes the relative prevalence of each type of coordinate quality issue.
 
 ```{r fig-coord-issues-interactive, fig.cap="Interactive breakdown of coordinate quality issues. Hover over bars to see details about each test."}
 # Create interactive plotly bar chart for coordinate issues
@@ -1876,7 +1878,7 @@ fig_coord
 tax_complete <- quality_metrics$taxonomic_completeness
 ```
 
-Taxonomic identification completeness varied across hierarchical levels (Table 4). While nearly all records had kingdom-level classification (*`r round(tax_complete$pct_n_with_kingdom, 1)`*%), species-level identification was present in *`r round(tax_complete$pct_n_with_species, 1)`*% of records in the original dataset.
+Taxonomic identification completeness varied across hierarchical levels (<a id="table-4"></a>[**Table 4**](#table-4)). While nearly all records had kingdom-level classification (*`r round(tax_complete$pct_n_with_kingdom, 1)`*%), species-level identification was present in *`r round(tax_complete$pct_n_with_species, 1)`*% of records in the original dataset.
 
 ```{r taxonomic-completeness-table}
 # Create taxonomic completeness table
@@ -2164,7 +2166,7 @@ kable(moran_table, caption = "Table 6: Spatial autocorrelation analysis of sampl
 
 ### Environmental Bias
 
-Environmental bias analysis revealed systematic deviations between sampled locations and the full environmental space available across Kenya (Table 7, Figure 5). All three tested environmental variables showed **highly significant differences** (all p < 0.001) between sampled and available distributions, indicating that GBIF records do not represent a random or representative sample of Kenya's environmental diversity.
+Environmental bias analysis revealed systematic deviations between sampled locations and the full environmental space available across Kenya (<a id="table-7"></a>[**Table 7**](#table-7), <a id="figure-env-bias"></a>[**Environmental Bias Plots**](#interactive-environmental-bias)). All three tested environmental variables showed **highly significant differences** (all p < 0.001) between sampled and available distributions, indicating that GBIF records do not represent a random or representative sample of Kenya's environmental diversity.
 
 **Specific Environmental Biases Detected:**
 
@@ -2670,7 +2672,7 @@ This extreme concentration means that a small number of well-studied taxonomic g
 
 **Taxonomic Groups Driving the Database:**
 
-The database is overwhelmingly dominated by a few charismatic or well-studied groups (Table 10):
+The database is overwhelmingly dominated by a few charismatic or well-studied groups (<a id="table-10"></a>[**Table 10**](#table-10)):
 
 ```{r top-taxonomic-drivers}
 # Get top 5 classes
@@ -2750,7 +2752,7 @@ fig_treemap
 
 ### Taxonomic Inequality
 
-The Lorenz curve (Figure 5) illustrates the concentration of records among taxonomic classes. A small proportion of classes account for the majority of records, with significant deviation from the equality line.
+The <a id="lorenz-curve"></a>[**Lorenz curve**](#interactive-lorenz-curve) illustrates the concentration of records among taxonomic classes. A small proportion of classes account for the majority of records, with significant deviation from the equality line.
 
 ```{r interactive-lorenz-curve, fig.cap="Interactive Lorenz curve showing taxonomic inequality. Hover to see exact cumulative proportions. The dashed red line represents perfect equality."}
 # Create Lorenz curve data from class_summary
@@ -2860,7 +2862,7 @@ if (nrow(count_model_summary) > 0) {
 # distance from equator, distance from coast
 ```
 
-The *`r modeling_summary$model_type`* GLM was specified with six environmental and geographic predictors: elevation, temperature, precipitation, distance to nearest city, distance from equator, and distance from coast (see Methods section). Table 12 presents the coefficient estimates for all predictors included in the fitted model.
+The *`r modeling_summary$model_type`* GLM was specified with six environmental and geographic predictors: elevation, temperature, precipitation, distance to nearest city, distance from equator, and distance from coast (see Methods section). <a id="table-12"></a>[**Table 12**](#table-12) presents the coefficient estimates for all predictors included in the fitted model.
 
 ```{r model-coefficients-table}
 # Create clean, descriptive predictor names
@@ -2964,7 +2966,7 @@ fig_coef
 
 ### Sampling Bias Map
 
-Based on model predictions, we identified under-sampled and over-sampled regions relative to what the model predicts based on environmental and geographic factors (Figure 10).
+Based on model predictions, we identified under-sampled and over-sampled regions relative to what the model predicts based on environmental and geographic factors (<a id="figure-bias-map"></a>[**Interactive Bias Map**](#interactive-bias-map)).
 
 **Critical Interpretation Note:** The bias map shows **residuals** from the GLM model - deviations between observed and predicted sampling effort. This means:
 
