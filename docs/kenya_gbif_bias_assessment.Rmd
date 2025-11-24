@@ -2068,11 +2068,7 @@ With less than *`r round(effort_summary$percent_covered, 1)`*% of Kenya's area c
 - Spatial biodiversity patterns and gradients
 - Conservation planning that assumes comprehensive species distribution knowledge
 
-```{r fig-sampling-effort, fig.cap="Spatial distribution of sampling effort across Kenya. Color intensity represents log10-transformed number of occurrence records per hexagonal grid cell (~10 km resolution)."}
-knitr::include_graphics(here("figures", "01_sampling_effort_map.png"))
-```
-
-```{r interactive-sampling-map, fig.cap="Interactive map of sampling effort across Kenya. Click on cells to see detailed statistics, zoom to explore different regions."}
+```{r interactive-sampling-map, fig.cap="Interactive map of sampling effort across Kenya. Click on cells to see detailed statistics, zoom to explore different regions. Hexagons are semi-transparent to show underlying towns and roads."}
 # Interactive Leaflet Map of Sampling Effort Distribution
 # Requires spatial grid data from scripts/02_spatial_bias.R
 
@@ -2316,10 +2312,6 @@ kable(env_bias_table,
       caption = "Table 7: Kolmogorov-Smirnov tests for environmental bias (sampled vs available space)",
       booktabs = TRUE) %>%
   kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
-```
-
-```{r fig-environmental-bias, fig.cap="Comparison of environmental space between sampled locations (red) and available space in Kenya (grey). Significant differences indicate environmental bias in sampling."}
-knitr::include_graphics(here("figures", "03_environmental_bias.png"))
 ```
 
 ```{r interactive-environmental-bias, fig.cap="Interactive environmental bias assessment. Hover over the distributions to see density values and explore the differences between sampled and available environmental space."}
@@ -3373,11 +3365,7 @@ sessionInfo()
 
 # Appendix: Additional Figures
 
-```{r fig-appendix-species-richness, fig.cap="Appendix Figure A1: Species richness across Kenya showing number of unique species per grid cell."}
-knitr::include_graphics(here("figures", "02_species_richness_map.png"))
-```
-
-```{r interactive-species-richness-map, fig.cap="Interactive species richness map of Kenya. Click on cells to see detailed statistics, zoom to explore patterns."}
+```{r interactive-species-richness-map, fig.cap="Appendix Figure A1: Interactive species richness map of Kenya. Click on cells to see detailed statistics, zoom to explore patterns. Hexagons are semi-transparent to show underlying geography."}
 # Interactive Leaflet Map of Species Richness
 spatial_grid_file <- file.path(data_outputs, "spatial_grid_effort.rds")
 
@@ -3437,11 +3425,7 @@ if (file.exists(spatial_grid_file)) {
 }
 ```
 
-```{r fig-appendix-temporal-class, fig.cap="Appendix Figure A2: Temporal trends by taxonomic class showing changes in sampling effort over time for major groups."}
-knitr::include_graphics(here("figures", "08_temporal_by_class.png"))
-```
-
-```{r interactive-temporal-by-class, fig.cap="Interactive temporal trends by taxonomic class. Hover over lines to see exact values, click legend items to show/hide classes."}
+```{r interactive-temporal-by-class, fig.cap="Appendix Figure A2: Interactive temporal trends by taxonomic class. Hover over lines to see exact values, click legend items to show/hide classes."}
 # Load and prepare data for interactive temporal trends by class
 kenya_data_file <- file.path(data_processed, "kenya_gbif_data.rds")
 
