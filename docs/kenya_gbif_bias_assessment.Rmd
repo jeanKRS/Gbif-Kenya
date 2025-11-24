@@ -13,6 +13,7 @@ output:
     code_folding: hide
     fig_width: 10
     fig_height: 8
+    self_contained: true
   pdf_document:
     toc: true
     number_sections: true
@@ -22,6 +23,7 @@ output:
     fig_caption: yes
 bibliography: references.bib
 csl: ecology.csl
+thumbnail: ../images/data_cleaning_documentation_gap.png
 ---
 
 ```{r syntax-highlighting-setup, echo=FALSE, results='asis'}
@@ -1408,7 +1410,7 @@ model_completeness <- if(length(missing_count) == 0) {
 ```
 
 ```{r model-data-validation-note, echo=FALSE, results='asis', eval=length(missing_count) > 0}
-# Display data limitation notice if predictors are missing
+# Display model fitting notice if predictors are missing
 cat('<div style="
   background-color: #fff3cd;
   border-left: 4px solid #ffc107;
@@ -1416,15 +1418,20 @@ cat('<div style="
   margin: 20px 0;
   border-radius: 5px;
 ">')
-cat('<strong>⚠️ Data Availability Note:</strong><br>')
-cat('The fitted statistical model includes <strong>', n_count_predictors, ' of ', n_expected, ' expected predictors</strong> due to data availability constraints.<br><br>')
-cat('<strong>Available predictors:</strong> ', paste(gsub("_scaled", "", count_model_predictors), collapse = ", "), '<br>')
+cat('<strong>⚠️ Model Fitting Note:</strong><br>')
+cat('The fitted statistical model includes <strong>', n_count_predictors, ' of ', n_expected, ' expected predictors</strong> due to model convergence constraints.<br><br>')
+cat('<strong>Successfully fitted predictors:</strong> ', paste(gsub("_scaled", "", count_model_predictors), collapse = ", "), '<br>')
 if(length(missing_count) > 0) {
-  cat('<strong>Unavailable predictors:</strong> ', paste(gsub("_scaled|_km", "", missing_count), collapse = ", "), '<br><br>')
-  cat('<em>Analysis Implications:</em> The model focuses on environmental predictors (elevation, temperature, precipitation) ')
-  cat('and may not capture accessibility-related biases (distance to cities, coast) or latitudinal gradients. ')
-  cat('This represents a common constraint in biodiversity data analysis where complete covariate coverage is not always available. ')
-  cat('Results should be interpreted as preliminary environmental bias assessment rather than comprehensive sampling effort prediction.')
+  cat('<strong>Predictors excluded due to convergence issues:</strong> ', paste(gsub("_scaled|_km", "", missing_count), collapse = ", "), '<br><br>')
+  cat('<em>Technical Details:</em> All geographic and environmental covariates were computed from the data (including distance to major cities, ')
+  cat('distance from equator, and distance from coast). However, due to the extreme overdispersion in the count data ')
+  cat('(sampling effort varies from 0 to thousands of records per grid cell), the full Negative Binomial GLM with all six predictors ')
+  cat('failed to converge. The modeling script (scripts/05_statistical_models.R) attempts multiple fitting strategies with relaxed ')
+  cat('convergence criteria before falling back to a more parsimonious model.<br><br>')
+  cat('<em>Analysis Implications:</em> The current model focuses on environmental predictors (elevation, temperature, precipitation) ')
+  cat('and may not fully capture accessibility-related biases (distance to cities, coast) or latitudinal gradients. ')
+  cat('Results should be interpreted as environmental bias assessment. Future work could explore alternative modeling approaches ')
+  cat('(e.g., zero-inflated models, GAMs with spatial smoothing, or Bayesian hierarchical models) to incorporate all predictors.')
 }
 cat('</div>')
 ```
@@ -1709,6 +1716,10 @@ This section presents comprehensive results organized by bias type:
 ### Overall Data Retention
 
 ```{r quality-overview}
+### Data Flow Summary:
+# 1. Load quality assessment → extract record counts → calculate flag rates
+# 2. Compare original vs. clean counts → compute retention statistics
+
 # Calculate summary statistics using moderate filtering strategy
 n_original <- quality_assessment$n_original
 n_moderate_clean <- quality_assessment$clean_counts$moderate_clean
@@ -2064,6 +2075,9 @@ This analysis validates our moderate filtering approach as a balanced strategy t
 ## Spatial Bias
 
 ```{r spatial-bias-results}
+### Data Flow Summary:
+# Load spatial summary → extract effort statistics → prepare for reporting
+
 effort_summary <- spatial_summary$effort_summary
 ```
 
@@ -2622,7 +2636,7 @@ fig <- plot_ly(temporal_data) %>%
 
 ### Temporal Completeness
 
-The temporal coverage spanned ***`r temporal_stats$year_range`*** years (*`r temporal_stats$year_min`*-*`r temporal_stats$year_max`*), with data available for ***`r temporal_stats$total_years`*** years. Temporal completeness was ***`r round(gap_summary$temporal_completeness, 1)`*%**, with ***`r gap_summary$years_without_records`*** years containing no records. The coefficient of variation for annual records was ***`r round(temporal_stats$cv_records, 2)`***, indicating high inter-annual variability.
+The temporal coverage spanned ***`r temporal_stats$year_range`*** years (*`r temporal_stats$year_min`*-*`r temporal_stats$year_max`*), with data available for ***`r temporal_stats$total_years`*** years. Temporal completeness was ***`r round(gap_summary$temporal_completeness, 1)`*%**, with ***`r gap_summary$years_without_records`*** years containing no records. The coefficient of variation for annual records was ***`r round(temporal_stats$cv_records, 2)`***, indicating high inter-annual variability (<a id="table-9"></a>[**Table 9**](#table-9)).
 
 ```{r temporal-summary-table}
 temporal_sum_table <- data.frame(
@@ -2650,6 +2664,11 @@ kable(temporal_sum_table, caption = "Table 9: Temporal coverage summary",
 ### Taxonomic Coverage and Inequality
 
 ```{r taxonomic-overview}
+### Data Flow Summary:
+# 1. Load taxonomic summary → extract diversity metrics
+# 2. Extract specific inequality metrics (Gini, Simpson, Shannon)
+# 3. Calculate concentration statistics for top classes
+
 tax_overview <- taxonomic_summary$overview
 diversity_metrics <- taxonomic_summary$diversity_metrics
 gini_records <- diversity_metrics$value[diversity_metrics$metric == "Gini_records"]
@@ -2863,6 +2882,11 @@ kable(rarity_table, caption = "Table 11: Distribution of species by rarity class
 ## Predictors of Sampling Effort
 
 ```{r model-results}
+### Data Flow Summary:
+# 1. Load model summaries → filter count model coefficients
+# 2. Extract and validate predictor variables
+# 3. Report which predictors are included in fitted model
+
 # Extract count model summary
 count_model_summary <- model_summaries %>%
   filter(model == "Count Model", term != "(Intercept)")
@@ -2881,7 +2905,9 @@ if (nrow(count_model_summary) > 0) {
 # distance from equator, distance from coast
 ```
 
-The modeling approach initially attempted to fit a GLM with six environmental and geographic predictors (elevation, temperature, precipitation, distance to nearest city, distance from equator, and distance from coast). However, due to model convergence issues, the final fitted *`r modeling_summary$model_type`* model includes three core environmental predictors: elevation, temperature, and precipitation (see Methods section). <a id="table-12"></a>[**Table 12**](#table-12) presents the coefficient estimates for all predictors included in the fitted model.
+The modeling approach attempted to fit a GLM with six environmental and geographic predictors (elevation, temperature, precipitation, distance to nearest city, distance from equator, and distance from coast). All covariates were successfully computed from the spatial grid and location data. The final fitted *`r modeling_summary$model_type`* model includes the predictors that converged successfully (see warning box in Methods section for details on convergence challenges). <a id="table-12"></a>[**Table 12**](#table-12) presents the coefficient estimates for all predictors included in the fitted model.
+
+**Note on Geographic Covariates:** Distance variables are calculated as follows: (1) distance to nearest major city uses the minimum Euclidean distance to Nairobi, Mombasa, Kisumu, Nakuru, or Eldoret; (2) distance from equator is absolute latitude; (3) distance from coast approximates distance from the eastern boundary at 40.5°E. These are computed for all grid cells in the analysis pipeline.
 
 ```{r model-coefficients-table}
 # Create clean, descriptive predictor names

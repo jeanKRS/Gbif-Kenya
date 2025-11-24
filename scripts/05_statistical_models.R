@@ -182,7 +182,42 @@ if (models_exist) {
       message(sprintf("    First attempt failed: %s", e$message))
     })
 
-    # Attempt 2: Simpler model (main environmental variables only)
+    # Attempt 2: Try with relaxed convergence criteria
+    if (!fit_successful) {
+      message("    Trying with relaxed convergence criteria...")
+      tryCatch({
+        glm_nb <- glm.nb(
+          n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+            dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
+          data = grid_model,
+          control = glm.control(epsilon = 1e-8, maxit = 500, trace = FALSE),
+          init.theta = 1
+        )
+        fit_successful <- TRUE
+        message("    ✓ Full model with relaxed criteria converged")
+      }, error = function(e) {
+        message(sprintf("    Relaxed criteria failed: %s", e$message))
+      })
+    }
+
+    # Attempt 2b: Try subset of geographic predictors
+    if (!fit_successful) {
+      message("    Trying with partial geographic predictors...")
+      tryCatch({
+        glm_nb <- glm.nb(
+          n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
+            dist_to_city_scaled,
+          data = grid_model,
+          control = glm.control(epsilon = 1e-10, maxit = 300, trace = FALSE)
+        )
+        fit_successful <- TRUE
+        message("    ✓ Model with dist_to_city converged")
+      }, error = function(e) {
+        message(sprintf("    Partial model failed: %s", e$message))
+      })
+    }
+
+    # Attempt 2c: Simpler model (main environmental variables only) - LAST RESORT
     if (!fit_successful) {
       message("    Trying with simpler model (environmental variables only)...")
       tryCatch({
@@ -192,34 +227,35 @@ if (models_exist) {
           control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
         )
         fit_successful <- TRUE
-        message("    ✓ Simpler model converged")
+        message("    ✓ Simpler model converged (NOTE: geographic predictors excluded)")
       }, error = function(e) {
         message(sprintf("    Simpler model also failed: %s", e$message))
       })
     }
 
-    # Attempt 3: Use starting values from Poisson model
+    # Attempt 3: Use alternative theta initialization
     if (!fit_successful) {
-      message("    Trying with starting values from Poisson model...")
+      message("    Trying with alternative theta initialization...")
       tryCatch({
-        # Get starting values from Poisson model
-        poisson_coefs <- coef(glm_poisson)
+        # Estimate initial theta from variance/mean ratio
+        var_ratio <- var(grid_model$n_records) / mean(grid_model$n_records)
+        init_theta <- if (var_ratio > 1) 1 / (var_ratio - 1) else 0.5
 
         glm_nb <- glm.nb(
           n_records ~ elevation_scaled + temperature_scaled + precipitation_scaled +
             dist_to_city_scaled + dist_from_equator + dist_from_coast_km,
           data = grid_model,
-          init.theta = 1,
-          control = glm.control(epsilon = 1e-10, maxit = 200, trace = FALSE)
+          init.theta = max(0.1, min(10, init_theta)),  # Bound theta
+          control = glm.control(epsilon = 1e-8, maxit = 500, trace = FALSE)
         )
         fit_successful <- TRUE
-        message("    ✓ Model with starting values converged")
+        message("    ✓ Model with alternative theta converged")
       }, error = function(e) {
-        message(sprintf("    Model with starting values failed: %s", e$message))
+        message(sprintf("    Alternative theta model failed: %s", e$message))
       })
     }
 
-    # Attempt 4: GAM with negative binomial family as final fallback
+    # Attempt 4: GAM with negative binomial family as fallback
     if (!fit_successful) {
       message("    Trying GAM with negative binomial family as fallback...")
       tryCatch({
