@@ -58,6 +58,50 @@ document.addEventListener("DOMContentLoaded", function() {
 Users of this analysis should exercise appropriate scientific judgment and consider conducting additional validation for critical applications. Feedback, suggestions, and collaborative refinement of these methods are welcome.
 </div>
 
+# List of Tables {-}
+
+<div style="background-color: #fff9e6; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+
+**Main Tables**
+
+1. <a href="#table-1" style="color: #e65100; font-weight: 600;">Table 1</a> - Summary statistics of GBIF data for Kenya (Interactive)
+2. <a href="#table-2" style="color: #e65100; font-weight: 600;">Table 2</a> - Detailed breakdown of data quality flags
+3. <a href="#table-3" style="color: #e65100; font-weight: 600;">Table 3</a> - Breakdown of coordinate quality issues
+4. <a href="#table-4" style="color: #e65100; font-weight: 600;">Table 4</a> - Taxonomic completeness at each hierarchical level
+5. <a href="#table-5" style="color: #e65100; font-weight: 600;">Table 5</a> - Sensitivity Analysis - Compare filtering strategies (Interactive)
+6. <a href="#table-6" style="color: #e65100; font-weight: 600;">Table 6</a> - Spatial autocorrelation analysis of sampling effort
+7. <a href="#table-7" style="color: #e65100; font-weight: 600;">Table 7</a> - Kolmogorov-Smirnov tests for environmental bias
+8. <a href="#table-8" style="color: #e65100; font-weight: 600;">Table 8</a> - Mann-Kendall trend tests for temporal patterns
+9. <a href="#table-9" style="color: #e65100; font-weight: 600;">Table 9</a> - Temporal coverage summary
+10. <a href="#table-10" style="color: #e65100; font-weight: 600;">Table 10</a> - Top 10 taxonomic classes by number of records
+11. <a href="#table-11" style="color: #e65100; font-weight: 600;">Table 11</a> - Distribution of species by rarity class
+12. <a href="#table-12" style="color: #e65100; font-weight: 600;">Table 12</a> - GLM model coefficients predicting sampling effort
+
+</div>
+
+# List of Figures {-}
+
+<div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; margin: 20px 0; border-radius: 4px;">
+
+**Interactive Figures** 🎯
+
+- <a href="#figure-3" style="color: #1b5e20; font-weight: 600;">Figure 3</a> - Quality flag frequencies (interactive bar chart)
+- <a href="#figure-5" style="color: #1b5e20; font-weight: 600;">Figure 5</a> - Coordinate issues breakdown (interactive)
+- <a href="#interactive-sampling-map" style="color: #1b5e20; font-weight: 600;">Interactive Sampling Effort Map</a> - Spatial distribution with zoom/click
+- <a href="#interactive-environmental-bias" style="color: #1b5e20; font-weight: 600;">Interactive Environmental Bias</a> - Density plots for elevation, temperature, precipitation
+- <a href="#pipeline-temporal" style="color: #1b5e20; font-weight: 600;">Interactive Temporal Trends</a> - Records and species over time
+- <a href="#interactive-taxonomic-treemap" style="color: #1b5e20; font-weight: 600;">Interactive Taxonomic Treemap</a> - Top 15 classes representation
+- <a href="#interactive-lorenz-curve" style="color: #1b5e20; font-weight: 600;">Interactive Lorenz Curve</a> - Taxonomic inequality visualization
+- <a href="#interactive-bias-map" style="color: #1b5e20; font-weight: 600;">Interactive Sampling Bias Map</a> - GLM residuals showing over/under-sampled areas
+
+**Appendix Figures** 📊
+
+- <a href="#interactive-species-richness-map" style="color: #1b5e20; font-weight: 600;">Appendix A1</a> - Interactive species richness map
+- <a href="#interactive-temporal-by-class" style="color: #1b5e20; font-weight: 600;">Appendix A2</a> - Interactive temporal trends by taxonomic class
+- <a href="#fig-appendix-rarity-interactive" style="color: #1b5e20; font-weight: 600;">Appendix A3</a> - Interactive species rarity distribution
+
+</div>
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE,
@@ -1994,6 +2038,9 @@ sensitivity_table_interactive <- sensitivity_metrics %>%
   select(Strategy, Records, `Retention (%)`, Species, Families, Classes)
 
 # Create interactive table with custom formatting
+
+<a id="table-5"></a>
+
 datatable(
   sensitivity_table_interactive,
   caption = "Table 5: Sensitivity Analysis - Compare filtering strategies interactively. Click headers to sort, search to filter.",
@@ -2147,6 +2194,8 @@ create_function_flow(
 ### Spatial Autocorrelation
 
 Sampling effort exhibited strong positive spatial autocorrelation (Moran's I = *`r round(moran_results$morans_i, 3)`*, p < 0.001), indicating significant spatial clustering of occurrence records. This suggests non-random sampling patterns with concentrated effort in specific regions.
+
+<a id="table-6"></a>
 
 ```{r spatial-autocorrelation-table}
 moran_table <- data.frame(
@@ -2408,6 +2457,8 @@ if (file.exists(env_comp_file)) {
 ### Temporal Trends
 
 Data collection showed a significant increasing trend over time for both number of records (Mann-Kendall τ = *`r round(trend_tests$tau[trend_tests$variable == "n_records"], 3)`*, p < 0.001) and number of species (Mann-Kendall τ = *`r round(trend_tests$tau[trend_tests$variable == "n_species"], 3)`*, p < 0.001).
+
+<a id="table-8"></a>
 
 ```{r temporal-trends-table}
 trend_table <- trend_tests %>%
@@ -2824,6 +2875,8 @@ fig_lorenz
 ### Species Rarity
 
 A substantial proportion of species were represented by very few records. ***`r rarity_summary$n_species[rarity_summary$rarity_class == "Singleton (1 record)"]`*** species (*`r round(100*rarity_summary$prop_species[rarity_summary$rarity_class == "Singleton (1 record)"], 1)`*%) were singletons (1 record), and ***`r sum(rarity_summary$n_species[rarity_summary$rarity_class %in% c("Singleton (1 record)", "Doubleton (2 records)", "Very rare (3-5 records)")])`*** species (*`r round(100*sum(rarity_summary$prop_species[rarity_summary$rarity_class %in% c("Singleton (1 record)", "Doubleton (2 records)", "Very rare (3-5 records)")]), 1)`*%) had ≤5 records.
+
+<a id="table-11"></a>
 
 ```{r rarity-table}
 rarity_table <- rarity_summary %>%
