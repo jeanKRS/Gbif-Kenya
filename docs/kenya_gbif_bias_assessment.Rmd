@@ -2475,10 +2475,6 @@ kable(trend_table, caption = "Table 8: Mann-Kendall trend tests for temporal pat
   kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
 ```
 
-```{r fig-temporal-trends, fig.cap="Temporal trends in GBIF data for Kenya showing number of records (blue) and species (red, scaled ×10) from 1950 to present."}
-knitr::include_graphics(here("figures", "05_temporal_trends.png"))
-```
-
 <a id="pipeline-temporal"></a>
 
 ```{r interactive-temporal-trends, eval=exists("temporal_summary")}
@@ -2918,7 +2914,7 @@ if (nrow(count_model_summary) > 0) {
 # distance from equator, distance from coast
 ```
 
-The *`r modeling_summary$model_type`* GLM was specified with six environmental and geographic predictors: elevation, temperature, precipitation, distance to nearest city, distance from equator, and distance from coast (see Methods section). <a id="table-12"></a>[**Table 12**](#table-12) presents the coefficient estimates for all predictors included in the fitted model.
+The modeling approach initially attempted to fit a GLM with six environmental and geographic predictors (elevation, temperature, precipitation, distance to nearest city, distance from equator, and distance from coast). However, due to model convergence issues, the final fitted *`r modeling_summary$model_type`* model includes three core environmental predictors: elevation, temperature, and precipitation (see Methods section). <a id="table-12"></a>[**Table 12**](#table-12) presents the coefficient estimates for all predictors included in the fitted model.
 
 ```{r model-coefficients-table}
 # Create clean, descriptive predictor names
@@ -2951,7 +2947,7 @@ coef_table <- count_model_summary %>%
 
 # Display table
 kable(coef_table,
-      caption = "Table 12: Coefficients from negative binomial GLM predicting sampling effort. The model includes environmental variables (elevation, temperature, precipitation) and geographic variables (distance to cities, distance from equator, distance from coast). All continuous predictors were scaled (mean-centered, unit variance) except distance from equator and coast. Significant negative coefficient for distance to city indicates sampling decreases with distance from urban areas.",
+      caption = "Table 12: Coefficients from negative binomial GLM predicting sampling effort. The final fitted model includes three environmental variables: elevation, temperature, and precipitation. All predictors were scaled (mean-centered, unit variance) to enable coefficient comparison. The model coefficients indicate how each environmental factor influences the expected number of occurrence records per grid cell.",
       booktabs = TRUE,
       align = c("l", "r", "r", "r", "r")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
@@ -3022,24 +3018,24 @@ fig_coef
 
 ### Sampling Bias Map
 
-Based on model predictions, we identified under-sampled and over-sampled regions relative to what the model predicts based on environmental and geographic factors (<a id="figure-bias-map"></a>[**Interactive Bias Map**](#interactive-bias-map)).
+Based on model predictions, we identified under-sampled and over-sampled regions relative to what the model predicts based on environmental factors (<a id="figure-bias-map"></a>[**Interactive Bias Map**](#interactive-bias-map)).
 
 **Critical Interpretation Note:** The bias map shows **residuals** from the GLM model - deviations between observed and predicted sampling effort. This means:
 
-- **Blue areas (negative residuals)**: Under-sampled *relative to model predictions*. These areas have fewer records than the model predicts given their environmental conditions and accessibility. Importantly, **areas close to cities can be under-sampled** if their actual sampling is lower than expected given their proximity to urban centers and favorable environmental conditions.
+- **Blue areas (negative residuals)**: Under-sampled *relative to model predictions*. These areas have fewer records than the model predicts given their environmental conditions (elevation, temperature, precipitation). This suggests that factors beyond the environmental predictors in our model (such as accessibility, infrastructure, or historical survey patterns) are limiting sampling in these regions.
 
-- **Red areas (positive residuals)**: Over-sampled *relative to model predictions*. These areas have more records than expected, possibly due to research stations, protected areas, or targeted surveys not captured by the model's environmental/geographic predictors.
+- **Red areas (positive residuals)**: Over-sampled *relative to model predictions*. These areas have more records than expected based on their environmental characteristics alone, possibly due to research stations, protected areas, proximity to cities, or targeted surveys - factors not captured by the model's environmental predictors.
 
-This is fundamentally different from a raw sampling effort map. A remote area could appear "over-sampled" (red) if it has more records than expected given its remoteness, while an accessible urban area could be "under-sampled" (blue) if it has fewer records than predicted. The residuals reveal **unexplained patterns** - sampling bias that remains after accounting for accessibility and environmental gradients.
+This is fundamentally different from a raw sampling effort map. The residuals reveal **unexplained patterns** - sampling bias that remains after accounting for environmental gradients. Since the model only includes environmental predictors (elevation, temperature, precipitation), the residuals largely reflect the influence of accessibility, infrastructure, and socioeconomic factors that were not included in the final fitted model.
 
-The model explains sampling patterns based on distance to cities, elevation, climate, and geographic gradients. Areas with large residuals (positive or negative) represent locations where sampling deviates from these predictable patterns, potentially due to:
-- Research station locations not captured in "distance to cities"
-- Protected areas with targeted monitoring
-- Historical expedition routes
+The model explains sampling patterns based on elevation, temperature, and precipitation gradients. Areas with large residuals (positive or negative) represent locations where sampling deviates from these environmental predictions, potentially due to:
+- Proximity to urban centers and research institutions
+- Protected areas with targeted monitoring programs
+- Historical expedition routes and accessibility via road networks
 - Regions with active citizen science communities
-- Areas with restricted access despite proximity to cities
+- Areas with restricted access or security concerns
 
-Under-sampled areas (blue) represent priority targets for future sampling efforts, as they are under-represented even after accounting for their environmental and geographic characteristics.
+Under-sampled areas (blue) represent priority targets for future sampling efforts, as they are under-represented even after accounting for their environmental characteristics.
 
 ```{r interactive-bias-map, fig.cap="Interactive sampling bias map showing standardized residuals from GLM. Blue = under-sampled (fewer records than predicted), Red = over-sampled (more than predicted). Click cells to see actual vs predicted values."}
 # Load spatial grid and model predictions separately
@@ -3251,6 +3247,7 @@ Our analysis has several limitations:
 2. Data quality issues (misidentifications, georeferencing errors) may persist despite cleaning
 3. We lacked comprehensive reference data on Kenya's true biodiversity for all taxa
 4. Temporal and spatial coverage may have improved since our download date
+5. **Model convergence limitations**: The GLM for sampling effort was initially specified with six predictors (environmental and accessibility variables including distance to cities), but only three environmental predictors (elevation, temperature, precipitation) converged in the final model. This represents a significant impact of data quality issues - the absence of accessibility predictors (distance to cities, road networks) means our bias analysis cannot directly quantify the effect of infrastructure and urban proximity on sampling patterns. The residual maps therefore primarily capture unmeasured accessibility and socioeconomic factors rather than purely environmental biases.
 
 ## Kenya's Biodiversity Data in Global Context
 
