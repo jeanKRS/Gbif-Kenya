@@ -3135,6 +3135,208 @@ if (file.exists(spatial_grid_file) && file.exists(grid_pred_file)) {
 }
 ```
 
+#### Sensitivity Analysis: Bias Map Without Outlier Predictions
+
+To assess the robustness of the bias map and understand the influence of extreme predicted values, we perform a sensitivity analysis by removing outliers in the predicted record counts and re-examining the spatial patterns of sampling bias.
+
+**Rationale:** Extreme predicted values can arise from:
+- Grid cells with unusual combinations of environmental conditions
+- Model extrapolation beyond typical environmental ranges
+- High leverage points influencing residual patterns
+- Convergence artifacts in specific geographic regions
+
+By removing outliers in predicted values and recalculating standardized residuals, we can assess whether the broad spatial patterns of sampling bias are driven by extreme predictions or represent genuine under/over-sampling patterns.
+
+```{r outlier-analysis-bias-map}
+### Data Flow Summary:
+# 1. Load predictions → identify outliers using IQR method
+# 2. Filter outliers → recalculate standardized residuals
+# 3. Compare statistics before/after outlier removal
+
+if (file.exists(spatial_grid_file) && file.exists(grid_pred_file)) {
+  # Load data
+  spatial_grid <- readRDS(spatial_grid_file)
+  grid_predictions <- readRDS(grid_pred_file)
+
+  # Join data
+  grid_full <- spatial_grid %>%
+    left_join(
+      grid_predictions %>%
+        dplyr::select(grid_id, n_records, predicted_count, residual_count, residual_std),
+      by = "grid_id"
+    ) %>%
+    filter(!is.na(predicted_count))
+
+  # Identify outliers in predicted values using IQR method
+  Q1 <- quantile(grid_full$predicted_count, 0.25, na.rm = TRUE)
+  Q3 <- quantile(grid_full$predicted_count, 0.75, na.rm = TRUE)
+  IQR_pred <- Q3 - Q1
+
+  # Define outlier thresholds (using 1.5 * IQR as standard)
+  lower_bound <- Q1 - 1.5 * IQR_pred
+  upper_bound <- Q3 + 1.5 * IQR_pred
+
+  # Identify outliers
+  grid_full <- grid_full %>%
+    mutate(
+      is_outlier = predicted_count < lower_bound | predicted_count > upper_bound,
+      outlier_type = case_when(
+        predicted_count < lower_bound ~ "Low prediction outlier",
+        predicted_count > upper_bound ~ "High prediction outlier",
+        TRUE ~ "Normal"
+      )
+    )
+
+  # Calculate statistics
+  n_total <- nrow(grid_full)
+  n_outliers <- sum(grid_full$is_outlier, na.rm = TRUE)
+  pct_outliers <- 100 * n_outliers / n_total
+  n_low <- sum(grid_full$predicted_count < lower_bound, na.rm = TRUE)
+  n_high <- sum(grid_full$predicted_count > upper_bound, na.rm = TRUE)
+
+  # Filter non-outliers and recalculate standardized residuals
+  grid_filtered <- grid_full %>%
+    filter(!is_outlier) %>%
+    mutate(
+      residual_filtered = n_records - predicted_count,
+      residual_std_filtered = residual_filtered / sd(residual_filtered, na.rm = TRUE)
+    )
+
+  # Compare residual statistics before and after
+  comparison_stats <- data.frame(
+    Statistic = c("Number of cells", "Mean residual", "SD residual",
+                  "Min std. residual", "Max std. residual", "Range std. residual"),
+    `Original` = c(
+      n_total,
+      round(mean(grid_full$residual_count, na.rm = TRUE), 2),
+      round(sd(grid_full$residual_count, na.rm = TRUE), 2),
+      round(min(grid_full$residual_std, na.rm = TRUE), 2),
+      round(max(grid_full$residual_std, na.rm = TRUE), 2),
+      round(max(grid_full$residual_std, na.rm = TRUE) - min(grid_full$residual_std, na.rm = TRUE), 2)
+    ),
+    `Filtered` = c(
+      nrow(grid_filtered),
+      round(mean(grid_filtered$residual_filtered, na.rm = TRUE), 2),
+      round(sd(grid_filtered$residual_filtered, na.rm = TRUE), 2),
+      round(min(grid_filtered$residual_std_filtered, na.rm = TRUE), 2),
+      round(max(grid_filtered$residual_std_filtered, na.rm = TRUE), 2),
+      round(max(grid_filtered$residual_std_filtered, na.rm = TRUE) -
+              min(grid_filtered$residual_std_filtered, na.rm = TRUE), 2)
+    )
+  )
+
+  cat(sprintf("\n**Outlier Detection Summary:**\n\n"))
+  cat(sprintf("- Total grid cells with predictions: **%s**\n", format(n_total, big.mark = ",")))
+  cat(sprintf("- Outlier cells identified: **%s** (**%.1f%%**)\n", format(n_outliers, big.mark = ","), pct_outliers))
+  cat(sprintf("  - Low prediction outliers (< %.1f): **%s**\n", lower_bound, format(n_low, big.mark = ",")))
+  cat(sprintf("  - High prediction outliers (> %.1f): **%s**\n\n", upper_bound, format(n_high, big.mark = ",")))
+
+  # Display comparison table
+  kable(comparison_stats,
+        caption = "Comparison of residual statistics before and after outlier removal",
+        col.names = c("Statistic", "Original", "Filtered (Outliers Removed)"),
+        booktabs = TRUE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+}
+```
+
+```{r interactive-bias-map-filtered, fig.cap="Filtered sampling bias map with outlier predictions removed. Comparison with original map reveals robustness of spatial bias patterns."}
+### Data Flow Summary:
+# Filtered data → create leaflet map → compare with original bias map
+
+if (file.exists(spatial_grid_file) && file.exists(grid_pred_file)) {
+  # Transform filtered data to WGS84 for leaflet
+  grid_filtered_wgs84 <- st_transform(grid_filtered, 4326)
+
+  # Create diverging color palette for filtered residuals
+  rng_filtered <- max(abs(grid_filtered_wgs84$residual_std_filtered), na.rm = TRUE)
+
+  pal_filtered <- colorNumeric(
+    palette = colorRampPalette(c("#2166AC", "grey", "#B2182B"))(1000),
+    domain = c(-rng_filtered, rng_filtered),
+    na.color = "transparent"
+  )
+
+  # Create interactive map for filtered data
+  map_filtered <- leaflet(grid_filtered_wgs84) %>%
+    addProviderTiles("OpenStreetMap") %>%
+    addPolygons(
+      fillColor = ~pal_filtered(residual_std_filtered),
+      fillOpacity = 0.5,
+      color = "white",
+      weight = 0.5,
+      popup = ~paste0(
+        "<strong>Filtered Sampling Bias</strong><br>",
+        "<b>Observed:</b> ", format(n_records, big.mark = ","), " records<br>",
+        "<b>Predicted:</b> ", format(round(predicted_count), big.mark = ","), " records<br>",
+        "<b>Residual:</b> ", round(residual_filtered, 1), "<br>",
+        "<b>Std. Residual (filtered):</b> ", round(residual_std_filtered, 2), "<br>",
+        "<hr>",
+        ifelse(residual_std_filtered < -1, "<b style='color: blue;'>Under-sampled</b>",
+               ifelse(residual_std_filtered > 1, "<b style='color: red;'>Over-sampled</b>",
+                      "<b>As expected</b>"))
+      ),
+      highlightOptions = highlightOptions(
+        weight = 2,
+        color = "#666",
+        fillOpacity = 0.8,
+        bringToFront = TRUE
+      )
+    ) %>%
+    addLegend(
+      pal = pal_filtered,
+      values = ~residual_std_filtered,
+      title = "Std. Residuals<br>(Filtered)",
+      position = "bottomright",
+      opacity = 0.8,
+      labFormat = labelFormat(
+        prefix = "",
+        suffix = "",
+        between = " to ",
+        digits = 1
+      )
+    ) %>%
+    addControl(
+      html = "<div style='background: white; padding: 10px; border-radius: 5px; max-width: 250px;'>
+              <strong>Filtered Bias Map</strong><br>
+              <small>Outlier predictions removed</small><br>
+              <span style='color: #2166AC;'>■</span> Under-sampled<br>
+              <span style='color: #F7F7F7;'>■</span> As predicted<br>
+              <span style='color: #B2182B;'>■</span> Over-sampled<br>
+              </div>",
+      position = "topright"
+    )
+
+  map_filtered
+}
+```
+
+**Interpretation of Outlier Removal:**
+
+The sensitivity analysis reveals important insights about the robustness of sampling bias patterns:
+
+1. **Pattern Stability:** Comparing the original and filtered bias maps shows whether the broad spatial patterns of under/over-sampling are robust or driven by extreme predicted values. If patterns remain similar after outlier removal, this indicates that sampling biases are genuine and not artifacts of model predictions.
+
+2. **Outlier Locations:** Grid cells identified as prediction outliers warrant closer examination:
+   - **High prediction outliers** may represent areas with extreme environmental combinations (e.g., high elevation + high precipitation) where the model extrapolates beyond typical conditions
+   - **Low prediction outliers** might indicate environmentally homogeneous areas where the model predicts minimal sampling
+
+3. **Residual Range Changes:** The comparison table shows how outlier removal affects the range and distribution of standardized residuals:
+   - **Reduced range** suggests that extreme predictions were inflating residual magnitudes
+   - **Similar mean residuals** indicate that outliers don't systematically bias the average deviation
+   - **Changes in SD** reflect how outliers contributed to residual variability
+
+4. **Conservation Implications:**
+   - If filtered and original maps show similar under-sampled regions (blue areas), these represent **robust sampling gaps** that should be prioritized for future surveys regardless of model uncertainty
+   - Regions that appear under-sampled only in the original map but not in the filtered version may be artifacts of extreme predictions rather than genuine sampling deficiencies
+   - Over-sampled areas (red) that persist after filtering indicate genuine concentration of sampling effort beyond environmental predictions
+
+5. **Model Reliability:** The proportion of outliers (typically 5-10% with 1.5×IQR threshold) provides insight into model fit:
+   - **Low outlier percentage** suggests good model performance across most environmental gradients
+   - **High outlier percentage** or clustering of outliers in specific regions indicates areas where the model may not adequately capture sampling effort drivers
+
+**Recommendation:** Use the filtered bias map for identifying priority sampling areas, as it represents more robust estimates of spatial bias patterns after accounting for potential model extrapolation artifacts. Areas consistently identified as under-sampled in both maps should be highest priority for future biodiversity surveys in Kenya.
+
 # Discussion
 
 ## Data Quality Issues
