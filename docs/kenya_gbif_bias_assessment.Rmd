@@ -2031,6 +2031,8 @@ sensitivity_metrics <- data.frame(
 
 To demonstrate the robustness and flexibility of our flagging approach, we compared key biodiversity metrics across three filtering strategies (Table X). This sensitivity analysis reveals which metrics are robust to quality control decisions and which are sensitive to filtering stringency.
 
+<a id="table-5"></a>
+
 ```{r sensitivity-comparison-table}
 # Format the sensitivity analysis table (keep numeric for interactive sorting)
 sensitivity_table_interactive <- sensitivity_metrics %>%
@@ -2039,9 +2041,8 @@ sensitivity_table_interactive <- sensitivity_metrics %>%
   ) %>%
   select(Strategy, Records, `Retention (%)`, Species, Families, Classes)
 
-# Create interactive table with custom formatting
 
-<a id="table-5"></a>
+# Create interactive table with custom formatting
 
 datatable(
   sensitivity_table_interactive,
