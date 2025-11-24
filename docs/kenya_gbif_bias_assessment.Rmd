@@ -562,6 +562,8 @@ summary_table <- data.frame(
   )
 )
 
+<a id="table-1"></a>
+
 # Display as interactive table with function flow annotation
 create_interactive_table(
   summary_table,
