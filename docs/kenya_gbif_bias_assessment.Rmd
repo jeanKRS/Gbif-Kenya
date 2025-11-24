@@ -3002,7 +3002,7 @@ if (file.exists(spatial_grid_file) && file.exists(grid_pred_file)) {
   grid_with_pred <- spatial_grid %>%
     left_join(
       grid_predictions %>%
-        dplyr::select(grid_id, predicted_count, residual, residual_std),
+        dplyr::select(grid_id, predicted_count, residual_count, residual_std),
       by = "grid_id"
     ) %>%
     filter(!is.na(residual_std))  # Only include cells with predictions
@@ -3029,7 +3029,7 @@ if (file.exists(spatial_grid_file) && file.exists(grid_pred_file)) {
         "<strong>Sampling Bias Analysis</strong><br>",
         "<b>Observed:</b> ", format(n_records, big.mark = ","), " records<br>",
         "<b>Predicted:</b> ", format(round(predicted_count), big.mark = ","), " records<br>",
-        "<b>Residual:</b> ", round(residual, 1), "<br>",
+        "<b>Residual:</b> ", round(residual_count, 1), "<br>",
         "<b>Std. Residual:</b> ", round(residual_std, 2), "<br>",
         "<hr>",
         ifelse(residual_std < -1, "<b style='color: blue;'>Under-sampled</b>",
