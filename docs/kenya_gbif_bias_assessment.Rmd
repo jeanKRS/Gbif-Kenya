@@ -3158,11 +3158,11 @@ if (file.exists(spatial_grid_file) && file.exists(grid_pred_file)) {
   spatial_grid <- readRDS(spatial_grid_file)
   grid_predictions <- readRDS(grid_pred_file)
 
-  # Join data
+  # Join data (n_records is already in spatial_grid)
   grid_full <- spatial_grid %>%
     left_join(
       grid_predictions %>%
-        dplyr::select(grid_id, n_records, predicted_count, residual_count, residual_std),
+        dplyr::select(grid_id, predicted_count, residual_count, residual_std),
       by = "grid_id"
     ) %>%
     filter(!is.na(predicted_count))
