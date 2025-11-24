@@ -1110,10 +1110,14 @@ The K-S test compares cumulative distribution functions and returns a D-statisti
 </div>
 
 ```{r load-temporal-data}
-temporal_summary <- readRDS(file.path(data_outputs, "temporal_bias_summary.rds"))
-temporal_stats <- temporal_summary$temporal_stats
-trend_tests <- temporal_summary$trend_tests
-gap_summary <- temporal_summary$gap_summary
+### Data Flow Summary:
+# Load temporal bias summary → extract year-by-year data and statistics
+
+temporal_bias_summary <- readRDS(file.path(data_outputs, "temporal_bias_summary.rds"))
+temporal_summary <- temporal_bias_summary$temporal_summary  # Year-by-year data frame
+temporal_stats <- temporal_bias_summary$temporal_stats      # Overall statistics
+trend_tests <- temporal_bias_summary$trend_tests
+gap_summary <- temporal_bias_summary$gap_summary
 ```
 
 Temporal bias refers to uneven distribution of sampling effort over time. This can confound analyses of biodiversity change, species trends, and phenology. We assessed temporal patterns using multiple approaches:
@@ -2458,19 +2462,19 @@ kable(trend_table, caption = "Table 8: Mann-Kendall trend tests for temporal pat
 
 <a id="pipeline-temporal"></a>
 
-```{r interactive-temporal-trends, eval=exists("temporal_summary")}
+```{r interactive-temporal-trends, fig.cap="Interactive temporal trends showing records and species over time. Hover to see exact values, zoom and pan to explore patterns."}
+### Data Flow Summary:
+# temporal_summary (year-by-year data) → plotly chart with dual y-axes
+
 # Interactive Plotly Chart for Temporal Trends
 # Allows zooming, panning, and hover to see exact values
-# Only renders if temporal data has been loaded
 
-# Check if we have the required data structure
-if (!is.null(temporal_summary) && "temporal_stats" %in% names(temporal_summary)) {
-  temporal_data <- temporal_summary$temporal_stats
-
+# Check if we have the required data
+if (!is.null(temporal_summary) && is.data.frame(temporal_summary)) {
   # Verify required columns exist
-  if (all(c("year", "n_records", "n_species") %in% names(temporal_data))) {
+  if (all(c("year", "n_records", "n_species") %in% names(temporal_summary))) {
     # Create interactive plotly chart with dual y-axes
-    fig <- plot_ly(temporal_data)
+    fig <- plot_ly(temporal_summary)
 
     # Add records trace
     fig <- fig %>%
@@ -2608,9 +2612,9 @@ trend_tests <- data.frame(
 )
 
 ## Step 5: Create interactive visualization (in this R Markdown)
-## File: docs/kenya_gbif_bias_assessment.Rmd, lines 1237-1303
+## File: docs/kenya_gbif_bias_assessment.Rmd, chunk: interactive-temporal-trends
 library(plotly)
-fig <- plot_ly(temporal_data) %>%
+fig <- plot_ly(temporal_summary) %>%
   add_trace(
     x = ~year, y = ~n_records,
     name = 'Records', type = 'scatter', mode = 'lines+markers'
@@ -2630,7 +2634,19 @@ fig <- plot_ly(temporal_data) %>%
       icon = "📅",
       subtitle = "Annual aggregation → Mann-Kendall tests → interactive visualization | scripts/03_temporal_bias.R"
     )
+  } else {
+    cat("<div style='background-color: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0;'>")
+    cat("<strong>⚠️ Data Structure Issue:</strong><br>")
+    cat("Temporal summary data frame exists but is missing required columns (year, n_records, n_species).<br>")
+    cat("Expected columns: ", paste(names(temporal_summary), collapse = ", "))
+    cat("</div>")
   }
+} else {
+  cat("<div style='background-color: #ffebee; padding: 15px; border-left: 4px solid #f44336; margin: 20px 0;'>")
+  cat("<strong>❌ Data Not Available:</strong><br>")
+  cat("Temporal summary data could not be loaded. Please run <code>scripts/03_temporal_bias.R</code> first to generate the temporal analysis.<br>")
+  cat("<em>Note:</em> This analysis requires the temporal_bias_summary.rds file in data/outputs/")
+  cat("</div>")
 }
 ```
 

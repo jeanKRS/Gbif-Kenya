@@ -450,7 +450,8 @@ print(period_summary)
 saveRDS(period_summary, file.path(data_outputs, "temporal_period_summary.rds"))
 
 temporal_bias_summary <- list(
-  temporal_stats = temporal_stats,
+  temporal_summary = temporal_summary,  # Year-by-year data (year, n_records, n_species, etc.)
+  temporal_stats = temporal_stats,      # Overall statistics (year_min, year_max, means, etc.)
   trend_tests = trend_tests,
   gap_summary = gap_summary,
   seasonal_summary = seasonal_summary,
