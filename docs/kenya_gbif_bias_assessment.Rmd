@@ -2423,6 +2423,8 @@ kable(trend_table, caption = "Table 8: Mann-Kendall trend tests for temporal pat
 knitr::include_graphics(here("figures", "05_temporal_trends.png"))
 ```
 
+<a id="pipeline-temporal"></a>
+
 ```{r interactive-temporal-trends, eval=exists("temporal_summary")}
 # Interactive Plotly Chart for Temporal Trends
 # Allows zooming, panning, and hover to see exact values
@@ -2512,9 +2514,6 @@ if (!is.null(temporal_summary) && "temporal_stats" %in% names(temporal_summary))
       func_name = "group_by(year) + summarize() + plotly::plot_ly()",
       description = "Temporal statistics aggregated by year, showing trends in data accumulation over time"
     )
-
-    # Add anchor for navigation
-    cat('<a id="pipeline-temporal"></a>\n\n')
 
     # Add collapsible code showing COMPLETE pipeline from R scripts
     create_pipeline_card("
