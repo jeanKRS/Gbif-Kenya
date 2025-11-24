@@ -2098,9 +2098,9 @@ leaflet(spatial_grid_wgs84) %>%
   addProviderTiles("OpenStreetMap") %>%
   addPolygons(
     fillColor = ~pal(log10(n_records + 1)),
-    fillOpacity = 0.7,
+    fillOpacity = 0.5,
     color = "white",
-    weight = 1,
+    weight = 0.8,
     popup = ~paste0(
       "<strong>Grid Cell Summary</strong><br>",
       "Records: ", format(n_records, big.mark = ","), "<br>",
@@ -2108,9 +2108,9 @@ leaflet(spatial_grid_wgs84) %>%
       "Log10 Records: ", round(log10(n_records + 1), 2)
     ),
     highlightOptions = highlightOptions(
-      weight = 3,
+      weight = 2,
       color = "#666",
-      fillOpacity = 0.9,
+      fillOpacity = 0.8,
       bringToFront = TRUE
     )
   ) %>%
@@ -3400,9 +3400,9 @@ if (file.exists(spatial_grid_file)) {
     addProviderTiles("OpenStreetMap") %>%
     addPolygons(
       fillColor = ~pal_species(log10(n_species + 1)),
-      fillOpacity = 0.7,
+      fillOpacity = 0.5,
       color = "white",
-      weight = 1,
+      weight = 0.8,
       popup = ~paste0(
         "<strong>Grid Cell Summary</strong><br>",
         "Species: ", n_species, "<br>",
@@ -3410,9 +3410,9 @@ if (file.exists(spatial_grid_file)) {
         "Log10 Species: ", round(log10(n_species + 1), 2)
       ),
       highlightOptions = highlightOptions(
-        weight = 3,
+        weight = 2,
         color = "#666",
-        fillOpacity = 0.9,
+        fillOpacity = 0.8,
         bringToFront = TRUE
       )
     ) %>%
