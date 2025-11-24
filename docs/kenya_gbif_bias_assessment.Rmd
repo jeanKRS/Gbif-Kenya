@@ -13,8 +13,6 @@ output:
     code_folding: hide
     fig_width: 10
     fig_height: 8
-    includes:
-      in_header: !expr 'c("<link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css\">", "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js\"></script>", "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/r.min.js\"></script>", "<script>document.addEventListener(\"DOMContentLoaded\", function() { hljs.highlightAll(); });</script>")'
   pdf_document:
     toc: true
     number_sections: true
@@ -25,6 +23,26 @@ output:
 bibliography: references.bib
 csl: ecology.csl
 ---
+
+```{r syntax-highlighting-setup, echo=FALSE, results='asis'}
+# Add syntax highlighting for dynamically generated code blocks in pipeline cards
+cat('
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/r.min.js"></script>
+<script>
+// Initialize highlight.js for dynamically created code blocks
+document.addEventListener("DOMContentLoaded", function() {
+  // Wait a bit for all content to load
+  setTimeout(function() {
+    document.querySelectorAll("pre code.language-r").forEach(function(block) {
+      hljs.highlightElement(block);
+    });
+  }, 100);
+});
+</script>
+')
+```
 
 # Disclaimer {-}
 
